@@ -13,9 +13,9 @@ git checkout
 popd
 
 if [ ! -d "${PWD}/include/gem5" ]; then
-    mkdir -p ${PWD}/include
-    cp -r gem5/include/gem5/* ${PWD}/include
-    cp gem5/util/m5/src/m5_mmap.h ${PWD}/include
+    mkdir -p ${PWD}/include/gem5
+    cp -r gem5/include/gem5/* ${PWD}/include/gem5
+    cp gem5/util/m5/src/m5_mmap.h ${PWD}/include/gem5
 fi
 
 declare -p ISAS
@@ -33,12 +33,10 @@ pushd gem5/util/m5
 
 # Iterate through array with proper quoting
 for isa in "${ISAS[@]}"; do
-    if [ ! -d "build/${isa}"]; then
-        echo "Building for ISA: ${isa}"
-        if ! scons "build/${isa}/out/m5"; then
-            echo "Failed to build for ${isa}"
-            exit 1
-        fi
+    echo "Building for ISA: ${isa}"
+    if ! scons "build/${isa}/out/m5"; then
+        echo "Failed to build for ${isa}"
+        exit 1
     fi
 done
 
