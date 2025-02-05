@@ -6,7 +6,7 @@ This directory helps creating the m5ops needed for annotating workloads for gem5
 
 # Instruction
 1. Make sure you have the compilers needed if you want to cross compile
-2. Run `ISA="[isa1] [isa2]" ./get-gem5-util.sh`
+2. Run `ISAS="[isa1] [isa2]" ./get-gem5-util.sh`
 
 It will create the directories:
 - include: all the header files needed for m5ops
