@@ -19,7 +19,6 @@ uint64_t region = 0;
 uint64_t total_num_bbs = 0;
 uint64_t current_array_size = ARRAY_SIZE;
 uint64_t total_IR_inst = 0;
-uint64_t IR_inst_counter = 0;
 
 uint64_t** bbv_array;
 uint64_t** count_stamp_array;
@@ -45,8 +44,8 @@ void process_data();
 
 __attribute__((no_profile_instrument_function))
 void bb_hook(
-    unsigned long long bb_inst, 
-    unsigned long long bb_id, 
-    unsigned long long threshold
+    uint64_t bb_inst, 
+    uint64_t bb_id, 
+    uint64_t threshold
 );
 
