@@ -182,14 +182,14 @@ void roi_end_() {
 
     fclose(fptr);
 
-    delete_arrays();
+    delete_array();
 
     printf("ROI end\n");
     printf("Region: %llu\n", region);
     printf("Total IR instructions: %llu\n", total_IR_inst);
 }
 
-void delete_arrays() {
+void delete_array() {
 /*
  * this function is used to free the memory allocated for the arrays
 */

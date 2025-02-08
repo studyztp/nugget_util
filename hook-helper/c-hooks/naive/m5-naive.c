@@ -9,6 +9,8 @@ void roi_begin_() {
     printf("ROI begin\n");
 #if defined(USE_ADDR_VERSION_M5OPS_BEGIN) || defined(USE_ADDR_VERSION_M5OPS_END)
     map_m5_mem();
+#endif
+
 #if defined(USE_ADDR_VERSION_M5OPS_BEGIN)
     m5_hypercall_addr(1);
 #else

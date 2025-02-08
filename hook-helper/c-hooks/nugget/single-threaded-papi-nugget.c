@@ -8,27 +8,41 @@ uint64_t start_threshold;
 uint64_t end_threshold;
 
 void warmup_event() {
-    m5_hypercall_addr(2);
+    printf("Warmup event\n");
 }
 
 void start_event() {
-    m5_hypercall(3);
+    printf("Start event\n");
+    int retval = PAPI_hl_region_begin("0");
+    if (retval != PAPI_OK) {
+        printf("PAPI_hl_region_begin failed due to %d.\n", retval);
+    }
 }
 
 void end_event() {
-    m5_hypercall(4);
+    int retval = PAPI_hl_region_end("0");
+    if (retval != PAPI_OK) {
+        printf("PAPI_hl_region_end failed due to %d.\n", retval);
+    }
+    printf("End event\n");
 }
 
 void roi_begin_() {
     if_warmup_not_met = TRUE;
-    map_m5_mem();
-    m5_hypercall_addr(1);
+
+    int retval = PAPI_library_init(PAPI_VER_CURRENT);
+    if (retval != PAPI_VER_CURRENT) {
+        printf("PAPI_library_init failed due to %d.\n", retval);
+    }
+    retval = PAPI_set_domain(PAPI_DOM_ALL);
+    if (retval != PAPI_OK) {
+        printf("PAPI_set_domain failed due to %d.\n", retval);
+    }
+
     printf("ROI begin\n");
 }
 
 void roi_end_() {
-    m5_hypercall(5);
-    unmap_m5_mem();
     printf("ROI end\n");
 }
 
