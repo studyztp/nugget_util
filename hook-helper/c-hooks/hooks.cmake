@@ -1,11 +1,3 @@
-cmake_minimum_required(VERSION 3.30.3 FATAL_ERROR)
-
-project(hook-helper-c-hooks LANGUAGES C)
-
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/llvm-ir-cmake-utils/cmake)
-
-include(LLVMIRUtil)
 
 set(ALL_HOOKS
     openmp-ir-bb-analysis
@@ -24,6 +16,8 @@ include(param)
 message(STATUS "PAPI_PATH=${PAPI_PATH}")
 message(STATUS "M5_PATH=${M5_PATH}")
 message(STATUS "M5_INCLUDE_PATH=${M5_INCLUDE_PATH}")
+
+find_package(OpenMP REQUIRED)
 
 if (NOT PAPI_PATH)
     # Filter out targets containing "papi"
@@ -58,11 +52,10 @@ foreach(HOOK ${ALL_HOOKS})
     endif()
 endforeach()
 
-add_subdirectory(analysis)
-add_subdirectory(naive)
-add_subdirectory(nugget)
-
-
+# Replace the add_subdirectory calls with:
+add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/analysis ${CMAKE_BINARY_DIR}/hooks/analysis)
+add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/naive ${CMAKE_BINARY_DIR}/hooks/naive)
+add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/nugget ${CMAKE_BINARY_DIR}/hooks/nugget)
 foreach(HOOK ${ALL_PAPI_HOOKS})
     target_include_directories(${HOOK} PUBLIC ${PAPI_PATH}/include)
     target_link_directories(${HOOK} PUBLIC ${PAPI_PATH}/lib)
@@ -97,16 +90,6 @@ foreach(HOOK ${ALL_M5_HOOKS})
 endforeach()
 
 foreach(HOOK ${ALL_OPENMP_HOOKS})
-    target_link_libraries(${HOOK} PUBLIC -fopenmp)
+    target_link_libraries(${HOOK} PUBLIC OpenMP::OpenMP_CXX)
 endforeach()
-
-set(ALL_HOOKS_BC "")
-
-foreach(HOOK ${ALL_HOOKS})
-    llvmir_attach_bc_target("${HOOK}-bc" ${HOOK})
-    llvmir_attach_link_target("${HOOK}-hook" "${HOOK}-bc")
-    list(APPEND ALL_HOOKS_BC "${HOOK}-hook")
-endforeach()
-
-add_custom_target(hooks ALL DEPENDS ${ALL_HOOKS_BC})
 

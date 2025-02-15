@@ -940,7 +940,7 @@ function(apply_opt_to_bc_target)
 
     # Arguments that take exactly one value
     # TARGET: Name of the output BC target to be optimized
-    set(oneValueArgs TARGET)
+    set(oneValueArgs TARGET DEPEND_TARGET)
 
     # Arguments that can take multiple values
     # DEPEND_TARGETS: List of CMake targets to generate BC from
