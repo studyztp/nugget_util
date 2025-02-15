@@ -612,11 +612,18 @@ function(llvm_link_ir_into_bc_target)
     message(STATUS "GLOBAL_LIB_INCLUDES: ${GLOBAL_LIB_INCLUDES}")
     message(STATUS "GLOBAL_LIB_OPTIONS: ${GLOBAL_LIB_OPTIONS}")
 
-    set(BC_COMPILE_CMD ${GLOBAL_COMPILE_OPTIONS} ${GLOBAL_COMPILE_FLAGS}
-       ${GLOBAL_LIB_LINKINGS} ${GLOBAL_LIB_OPTIONS}
+    # add custom command to link the IR files into a single BC file
+    add_custom_command(OUTPUT ${OUTPUT_LLVM_BC_FILE_PATH}
+        COMMAND ${LLVM_LINK} ${GLOBAL_SOURCES} -o 
+            ${OUTPUT_LLVM_BC_FILE_PATH} ${ADD_CMDS}
+        DEPENDS ${GLOBAL_SOURCES}
+        COMMENT "Linking LLVM IR files into BC file "
+             "${OUTPUT_LLVM_BC_FILE_PATH}"
+        VERBATIM
     )
 
-    add_custom_target(${TRGT} ALL DEPENDS ${GLOBAL_SOURCES})
+    # add custom target to generate the BC file
+    add_custom_target(${TRGT} ALL DEPENDS ${OUTPUT_LLVM_BC_FILE_PATH})
     # set the LLVM_TYPE to LLVM_BC_TYPE
     set_property(TARGET ${TRGT} PROPERTY LLVM_TYPE ${LLVM_BC_TYPE})
     set_property(TARGET ${TRGT} PROPERTY LLVM_SOURCE_FILES ${GLOBAL_SOURCES})
@@ -635,13 +642,34 @@ function(llvm_link_ir_into_bc_target)
     set_property(TARGET ${TRGT} PROPERTY LIB_LINKINGS ${GLOBAL_LIB_LINKINGS})
     set_property(TARGET ${TRGT} PROPERTY LIB_INCLUDES ${GLOBAL_LIB_INCLUDES})
     set_property(TARGET ${TRGT} PROPERTY LIB_OPTIONS ${GLOBAL_LIB_OPTIONS})
-    # link the IR files into a single BC file
-    add_custom_command(OUTPUT ${OUTPUT_LLVM_BC_FILE_PATH}
-        COMMAND ${LLVM_LINK} ${BC_COMPILE_CMD} ${GLOBAL_SOURCES} -o 
-            ${OUTPUT_LLVM_BC_FILE_PATH} ${ADD_CMDS}
-        DEPENDS ${GLOBAL_SOURCES}
-        COMMENT "Linking LLVM IR files into BC file "
-             "${OUTPUT_LLVM_BC_FILE_PATH}"
-        VERBATIM
+endfunction()
+
+function(llvm_compile_executable)
+    # List of options without values (boolean flags)
+    set(options)
+
+    # Arguments that take exactly one value
+    # TARGET: Name of the output executable target to be generated
+    set(oneValueArgs TARGET)
+
+    # Arguments that can take multiple values
+    # DEPEND_TARGETS: List of CMake targets to generate BC from
+    # ADDITIONAL_COMMANDS: Extra compiler flags to be appended to each compile 
+    # command
+    set(multiValueArgs DEPEND_TARGETS ADDITIONAL_COMMANDS)
+
+    # Parse the function arguments
+    cmake_parse_arguments(LLVM_GENERATE 
+        "${options}" 
+        "${oneValueArgs}" 
+        "${multiValueArgs}" 
+        ${ARGN}
     )
+
+    set(TRGT ${LLVM_GENERATE_TARGET})
+    set(DEP_TRGTS ${LLVM_GENERATE_DEPEND_TARGETS})
+    set(ADD_CMDS ${LLVM_GENERATE_ADDITIONAL_COMMANDS})
+
+    
+
 endfunction()
