@@ -600,7 +600,7 @@ function(print_target_properties target)
     message(STATUS "End of properties for '${target}'")
 endfunction()
 
-function(check_cxx_flag_works flag lang result)
+function(check_lang_flag_works flag lang result)
     # Create a clean temporary directory for testing the flag
     set(test_dir "${CMAKE_BINARY_DIR}/CMakeFiles/FlagTest")
     file(MAKE_DIRECTORY "${test_dir}" RESULT_VARIABLE make_dir_result)
