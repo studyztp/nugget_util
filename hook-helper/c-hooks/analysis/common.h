@@ -3,6 +3,10 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef BOOL
 typedef enum { FALSE = 0, TRUE = 1 } BOOL;
 #endif
@@ -13,19 +17,18 @@ typedef enum { FALSE = 0, TRUE = 1 } BOOL;
 
 #define ARRAY_SIZE 1000
 
-BOOL if_start = FALSE;
+extern BOOL if_start;
+extern uint64_t region;
+extern uint64_t total_num_bbs;
+extern uint64_t current_array_size;
+extern uint64_t total_IR_inst;
 
-uint64_t region = 0;
-uint64_t total_num_bbs = 0;
-uint64_t current_array_size = ARRAY_SIZE;
-uint64_t total_IR_inst = 0;
+extern uint64_t** bbv_array;
+extern uint64_t** count_stamp_array;
 
-uint64_t** bbv_array;
-uint64_t** count_stamp_array;
-
-uint64_t* bbv;
-uint64_t* count_stamp;
-uint64_t* counter_array;
+extern uint64_t* bbv;
+extern uint64_t* count_stamp;
+extern uint64_t* counter_array;
 
 __attribute__((no_profile_instrument_function))
 void roi_begin_();
@@ -48,4 +51,8 @@ void bb_hook(
     uint64_t bb_id, 
     uint64_t threshold
 );
+
+#ifdef __cplusplus
+}
+#endif
 

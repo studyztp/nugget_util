@@ -2,6 +2,45 @@
 
 uint64_t IR_inst_counter = 0;
 
+BOOL if_start = FALSE;
+uint64_t region = 0;
+uint64_t total_num_bbs = 0;
+uint64_t current_array_size = ARRAY_SIZE;
+uint64_t total_IR_inst = 0;
+
+uint64_t** bbv_array = NULL;
+uint64_t** count_stamp_array = NULL;
+
+uint64_t* bbv = NULL;
+uint64_t* count_stamp = NULL;
+uint64_t* counter_array = NULL;
+
+void increase_array() {
+
+    current_array_size += ARRAY_SIZE;
+    bbv_array = (unsigned long long**)realloc(bbv_array, current_array_size * sizeof(unsigned long long*));
+    count_stamp_array = (unsigned long long**)realloc(count_stamp_array, current_array_size * sizeof(unsigned long long*));
+    if (bbv_array == NULL || count_stamp_array == NULL) {
+        printf("Error: realloc failed\n");
+        exit(1);
+    }
+    for (unsigned long long i = current_array_size - ARRAY_SIZE; i < current_array_size; i++) {
+        bbv_array[i] = (unsigned long long*)malloc((total_num_bbs) * sizeof(unsigned long long));
+        count_stamp_array[i] = (unsigned long long*)malloc((total_num_bbs) * sizeof(unsigned long long));
+        if (bbv_array[i] == NULL || count_stamp_array[i] == NULL) {
+            printf("Error: malloc failed\n");
+            exit(1);
+        }
+        memset(bbv_array[i], 0, total_num_bbs * sizeof(unsigned long long));
+        memset(count_stamp_array[i], 0, total_num_bbs * sizeof(unsigned long long));
+    }
+    counter_array = (unsigned long long*)realloc(counter_array, current_array_size * sizeof(unsigned long long));
+    if (counter_array == NULL) {
+        printf("Error: realloc failed\n");
+        exit(1);
+    }
+}
+
 // Initialize arrays for basic block analysis
 __attribute__((no_profile_instrument_function))
 void init_array(uint64_t num_bbs) {
