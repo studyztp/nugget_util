@@ -74,9 +74,9 @@ macro(llvmir_setup)
     endif()
 
     # set the suffix for LLVM IR files
-    set(LLVM_BC_FILE_SUFFIX ".bc")
-    set(LLVM_LL_FILE_SUFFIX ".ll")
-    set(LLVM_OBJ_FILE_SUFFIX ".o")
+    set(LLVM_BC_FILE_SUFFIX "bc")
+    set(LLVM_LL_FILE_SUFFIX "ll")
+    set(LLVM_OBJ_FILE_SUFFIX "o")
 
     # This library creates three types of files:
     # 1. LLVM bitcode files (.bc)
@@ -152,63 +152,6 @@ macro(llvmir_set_final_compiler lang)
     endif()
     set(LLVM_FINAL_COMPILER ${COMPILER})
 endmacro()
-
-function(llvmir_check_target_properties_impl)
-  set(options)
-  set(oneValueArgs TARGET RESULT_VARIABLE)
-  set(multiValueArgs PROPERTIES)
-  cmake_parse_arguments(CTP
-    "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
-
-  # argument checks
-
-  if(NOT CTP_TARGET)
-    message(FATAL_ERROR "Missing TARGET option.")
-  endif()
-
-  if(NOT CTP_RESULT_VARIABLE)
-    message(FATAL_ERROR "Missing RESULT_VARIABLE option.")
-  endif()
-
-  if(NOT CTP_PROPERTIES)
-    message(FATAL_ERROR "Missing PROPERTIES option.")
-  endif()
-
-  if(CTP_UNPARSED_ARGUMENTS)
-    message(FATAL_ERROR "Extraneous arguments ${CTP_UNPARSED_ARGUMENTS}.")
-  endif()
-
-  if(NOT TARGET ${CTP_TARGET})
-    message(FATAL_ERROR "Cannot attach to non-existing target: ${CTP_TARGET}.")
-  endif()
-
-  set(_RESULT_VARIABLE 0)
-
-  foreach(prop ${CTP_PROPERTIES})
-    # equivalent to
-    # if(DEFINED prop AND prop STREQUAL "")
-    set(is_def TRUE)
-    set(is_set TRUE)
-
-    # this seems to not be working for targets defined with builtins
-    #get_property(is_def TARGET ${CTP_TARGET} PROPERTY ${prop} DEFINED)
-
-    get_property(is_set TARGET ${CTP_TARGET} PROPERTY ${prop} SET)
-
-    if(NOT is_def)
-      message(WARNING "property ${prop} for target ${CTP_TARGET} \
-      must be defined.")
-      set(_RESULT_VARIABLE 1)
-    endif()
-
-    if(NOT is_set)
-      message(WARNING "property ${prop} for target ${CTP_TARGET} must be set.")
-      set(_RESULT_VARIABLE 2)
-    endif()
-  endforeach()
-
-  set(${CTP_RESULT_VARIABLE} ${_RESULT_VARIABLE} PARENT_SCOPE)
-endfunction()
 
 function(llvmir_extract_compile_defs_properties out_compile_defs from)
   set(defs "")
@@ -600,7 +543,7 @@ function(print_target_properties target)
     message(STATUS "End of properties for '${target}'")
 endfunction()
 
-function(check_lang_flag_works flag lang result)
+function(check_lang_flag_works_with_llvm_compiler flag lang result)
     # Create a clean temporary directory for testing the flag
     set(test_dir "${CMAKE_BINARY_DIR}/CMakeFiles/FlagTest")
     file(MAKE_DIRECTORY "${test_dir}" RESULT_VARIABLE make_dir_result)
@@ -644,3 +587,5 @@ function(check_lang_flag_works flag lang result)
     # Clean up test directory
     file(REMOVE_RECURSE ${test_dir})
 endfunction()
+
+

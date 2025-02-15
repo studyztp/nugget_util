@@ -240,6 +240,9 @@ function(llvm_generate_ir_target)
         catuniq(LOCAL_C_FLAGS ${LOCAL_C_STD_FLAGS} ${LOCAL_C_FLAGS})
         catuniq(LOCAL_CXX_FLAGS ${LOCAL_CXX_STD_FLAGS} ${LOCAL_CXX_FLAGS})
         catuniq(LOCAL_FORTRAN_FLAGS ${LOCAL_FORTRAN_STD_FLAGS} ${LOCAL_FORTRAN_FLAGS})
+        
+        # add the linekr flags to library linkings
+        catuniq(LOCAL_LIB_LINKINGS ${LOCAL_LINK_FLAGS} ${LOCAL_LIB_LINKING})
 
         list(APPEND GLOBAL_C_FLAGS ${LOCAL_C_FLAGS})
         list(APPEND GLOBAL_CXX_FLAGS ${LOCAL_CXX_FLAGS})
@@ -279,7 +282,7 @@ function(llvm_generate_ir_target)
     set(temp_list "")
 
     foreach(flag ${GLOBAL_C_FLAGS})
-        check_lang_flag_works(${flag} C result)
+        check_lang_flag_works_with_llvm_compiler(${flag} C result)
         if(${result})
             list(APPEND temp_list ${flag})
         else()
@@ -292,7 +295,7 @@ function(llvm_generate_ir_target)
     set(temp_list "")
 
     foreach(flag ${GLOBAL_CXX_FLAGS})
-        check_lang_flag_works(${flag} CXX result)
+        check_lang_flag_works_with_llvm_compiler(${flag} CXX result)
         if(${result})
             list(APPEND temp_list ${flag})
         else()
@@ -305,7 +308,7 @@ function(llvm_generate_ir_target)
     set(temp_list "")
 
     foreach(flag ${GLOBAL_FORTRAN_FLAGS})
-        check_lang_flag_works(${flag} Fortran result)
+        check_lang_flag_works_with_llvm_compiler(${flag} Fortran result)
         if(${result})
             list(APPEND temp_list ${flag})
         else()
@@ -460,4 +463,185 @@ function(llvm_generate_ir_target)
     set_property(TARGET ${TRGT} PROPERTY LIB_INCLUDES ${GLOBAL_LIB_INCLUDES})
     set_property(TARGET ${TRGT} PROPERTY LIB_OPTIONS ${GLOBAL_LIB_OPTIONS})
 
+endfunction()
+
+function(llvm_link_ir_into_bc_target)
+    # List of options without values (boolean flags)
+    set(options)
+
+    # Arguments that take exactly one value
+    # TARGET: Name of the output BC target to be generated
+    set(oneValueArgs TARGET)
+
+    # Arguments that can take multiple values
+    # DEPEND_TARGETS: List of CMake targets to generate BC from
+    # ADDITIONAL_COMMANDS: Extra compiler flags to be appended to each compile 
+    # command
+    set(multiValueArgs DEPEND_TARGETS ADDITIONAL_COMMANDS)
+
+    # Parse the function arguments
+    cmake_parse_arguments(LLVM_GENERATE 
+        "${options}" 
+        "${oneValueArgs}" 
+        "${multiValueArgs}" 
+        ${ARGN}
+    )
+
+    set(TRGT ${LLVM_GENERATE_TARGET})
+    set(DEP_TRGTS ${LLVM_GENERATE_DEPEND_TARGETS})
+    set(ADD_CMDS ${LLVM_GENERATE_ADDITIONAL_COMMANDS})
+
+    if(NOT TRGT)
+        message(FATAL_ERROR "llvm_link_ir_into_bc_target: missing TARGET option")
+    endif()
+
+    if(NOT DEP_TRGTS)
+        message(FATAL_ERROR "llvm_link_ir_into_bc_target: missing DEPENDS option")
+    endif()
+
+    # check if the necessary properties are set
+    # for this function, we need the LLVM_TYPE property to be LLVM_IR_TYPE
+    foreach(dep_trgt ${DEP_TRGTS})
+        get_property(target_type TARGET ${dep_trgt} PROPERTY LLVM_TYPE)
+        # Check if it equals LLVM_LL_TYPE
+        if(NOT "${target_type}" STREQUAL "${LLVM_LL_TYPE}")
+            # Property matches LLVM_LL_TYPE
+            message(FATAL_ERROR "Target ${dep_trgt} is not of type LLVM_LL"
+                " - cannot link IR files into BC"
+                " - it is of type ${target_type}")
+        endif()
+    endforeach()
+
+    # setup global lists to store the properties of all targets
+    # list of all the source files, in this case, the IR files
+    set(GLOBAL_SOURCES "")
+    # The generated BC file
+    set(OUTPUT_LLVM_BC_FILE_PATH "")
+
+    # list of all the library properties
+    # list of all the library linkings, i.e. -L<lib-path>
+    set(GLOBAL_LIB_LINKINGS "")
+    # list of all the library includes, i.e. -I<lib-path>
+    set(GLOBAL_LIB_INCLUDES "")
+    # list of all the library options, i.e. -fopenmp
+    set(GLOBAL_LIB_OPTIONS "")
+
+    # list of all the include directories
+    set(GLOBAL_INCLUDES "")
+    # list of all the compile definitions
+    set(GLOBAL_DEFINITION "")
+
+    # list of all the compile options
+    set(GLOBAL_COMPILE_OPTIONS "")
+    # list of all the compile flags
+    set(GLOBAL_COMPILE_FLAGS "")
+
+    # list of the language flags, i.e. -std=c++11, -O3
+    set(GLOBAL_C_FLAGS "")
+    set(GLOBAL_CXX_FLAGS "")
+    set(GLOBAL_FORTRAN_FLAGS "")
+
+    set(WORK_DIR "${CMAKE_CURRENT_BINARY_DIR}/${LLVM_BC_OUTPUT_DIR}/${TRGT}")
+    if(NOT EXISTS "${WORK_DIR}")
+        file(MAKE_DIRECTORY "${WORK_DIR}")
+        if(NOT EXISTS "${WORK_DIR}")
+            message(FATAL_ERROR 
+                "[llvm_link_ir_into_bc_target]: failed to create directory ${WORK_DIR}"
+            )
+        endif()
+    endif()
+    set(OUTPUT_FILENAME "${TRGT}.${LLVM_BC_FILE_SUFFIX}")
+    set(OUTPUT_LLVM_BC_FILE_PATH "${WORK_DIR}/${OUTPUT_FILENAME}")
+
+    foreach(dep_trgt ${DEP_TRGTS})
+        get_property(LOCAL_LL_FILES TARGET ${dep_trgt} 
+            PROPERTY LLVM_GENERATED_FILES)
+        get_property(LOCAL_INCLUDES TARGET ${dep_trgt} PROPERTY INCLUDES)
+        get_property(LOCAL_DEFINITION TARGET ${dep_trgt} PROPERTY DEFINITION)
+        get_property(LOCAL_COMPILE_OPTIONS TARGET ${dep_trgt} 
+            PROPERTY COMPILE_OPTIONS)
+        get_property(LOCAL_COMPILE_FLAGS TARGET ${dep_trgt} 
+            PROPERTY COMPILE_FLAGS)
+        get_property(LOCAL_C_FLAGS TARGET ${dep_trgt} PROPERTY C_FLAGS)
+        get_property(LOCAL_CXX_FLAGS TARGET ${dep_trgt} PROPERTY CXX_FLAGS)
+        get_property(LOCAL_FORTRAN_FLAGS TARGET ${dep_trgt} 
+            PROPERTY FORTRAN_FLAGS)
+        get_property(LOCAL_LIB_LINKINGS TARGET ${dep_trgt} 
+            PROPERTY LIB_LINKINGS)
+        get_property(LOCAL_LIB_INCLUDES TARGET ${dep_trgt} 
+            PROPERTY LIB_INCLUDES)
+        get_property(LOCAL_LIB_OPTIONS TARGET ${dep_trgt} PROPERTY LIB_OPTIONS)
+
+        catuniq(GLOBAL_SOURCES ${LOCAL_LL_FILES} ${GLOBAL_SOURCES})
+        catuniq(GLOBAL_INCLUDES ${LOCAL_INCLUDES} ${GLOBAL_INCLUDES})
+        catuniq(GLOBAL_DEFINITION ${LOCAL_DEFINITION} ${GLOBAL_DEFINITION})
+        catuniq(GLOBAL_COMPILE_OPTIONS ${LOCAL_COMPILE_OPTIONS} 
+            ${GLOBAL_COMPILE_OPTIONS})
+        catuniq(GLOBAL_COMPILE_FLAGS ${LOCAL_COMPILE_FLAGS} 
+            ${GLOBAL_COMPILE_FLAGS})
+        catuniq(GLOBAL_C_FLAGS ${LOCAL_C_FLAGS} ${GLOBAL_C_FLAGS})
+        catuniq(GLOBAL_CXX_FLAGS ${LOCAL_CXX_FLAGS} ${GLOBAL_CXX_FLAGS})
+        catuniq(GLOBAL_FORTRAN_FLAGS ${LOCAL_FORTRAN_FLAGS} 
+            ${GLOBAL_FORTRAN_FLAGS})
+        catuniq(GLOBAL_LIB_LINKINGS ${LOCAL_LIB_LINKINGS} 
+            ${GLOBAL_LIB_LINKINGS})
+        catuniq(GLOBAL_LIB_INCLUDES ${LOCAL_LIB_INCLUDES} 
+            ${GLOBAL_LIB_INCLUDES})
+        catuniq(GLOBAL_LIB_OPTIONS ${LOCAL_LIB_OPTIONS} ${GLOBAL_LIB_OPTIONS})
+    endforeach()
+
+    list(REMOVE_DUPLICATES GLOBAL_INCLUDES)
+    list(REMOVE_DUPLICATES GLOBAL_DEFINITION)
+    list(REMOVE_DUPLICATES GLOBAL_COMPILE_OPTIONS)
+    list(REMOVE_DUPLICATES GLOBAL_COMPILE_FLAGS)
+    list(REMOVE_DUPLICATES GLOBAL_C_FLAGS)
+    list(REMOVE_DUPLICATES GLOBAL_CXX_FLAGS)
+    list(REMOVE_DUPLICATES GLOBAL_FORTRAN_FLAGS)
+    list(REMOVE_DUPLICATES GLOBAL_LIB_LINKINGS)
+    list(REMOVE_DUPLICATES GLOBAL_LIB_INCLUDES)
+    list(REMOVE_DUPLICATES GLOBAL_LIB_OPTIONS)
+
+    message(STATUS "GLOBAL_INCLUDES: ${GLOBAL_INCLUDES}")
+    message(STATUS "GLOBAL_DEFINITION: ${GLOBAL_DEFINITION}")
+    message(STATUS "GLOBAL_COMPILE_OPTIONS: ${GLOBAL_COMPILE_OPTIONS}")
+    message(STATUS "GLOBAL_COMPILE_FLAGS: ${GLOBAL_COMPILE_FLAGS}")
+    message(STATUS "GLOBAL_C_FLAGS: ${GLOBAL_C_FLAGS}")
+    message(STATUS "GLOBAL_CXX_FLAGS: ${GLOBAL_CXX_FLAGS}")
+    message(STATUS "GLOBAL_FORTRAN_FLAGS: ${GLOBAL_FORTRAN_FLAGS}")
+    message(STATUS "GLOBAL_LIB_LINKINGS: ${GLOBAL_LIB_LINKINGS}")
+    message(STATUS "GLOBAL_LIB_INCLUDES: ${GLOBAL_LIB_INCLUDES}")
+    message(STATUS "GLOBAL_LIB_OPTIONS: ${GLOBAL_LIB_OPTIONS}")
+
+    set(BC_COMPILE_CMD ${GLOBAL_COMPILE_OPTIONS} ${GLOBAL_COMPILE_FLAGS}
+       ${GLOBAL_LIB_LINKINGS} ${GLOBAL_LIB_OPTIONS}
+    )
+
+    add_custom_target(${TRGT} ALL DEPENDS ${GLOBAL_SOURCES})
+    # set the LLVM_TYPE to LLVM_BC_TYPE
+    set_property(TARGET ${TRGT} PROPERTY LLVM_TYPE ${LLVM_BC_TYPE})
+    set_property(TARGET ${TRGT} PROPERTY LLVM_SOURCE_FILES ${GLOBAL_SOURCES})
+    set_property(TARGET ${TRGT} PROPERTY LLVM_CUSTOM_OUTPUT_DIR ${WORK_DIR})
+    set_property(TARGET ${TRGT} 
+        PROPERTY LLVM_GENERATED_FILES ${OUTPUT_LLVM_BC_FILE_PATH})
+    # setup the properties to carry forward
+    set_property(TARGET ${TRGT} PROPERTY INCLUDES ${GLOBAL_INCLUDES})
+    set_property(TARGET ${TRGT} PROPERTY DEFINITION ${GLOBAL_DEFINITION})
+    set_property(TARGET ${TRGT} 
+        PROPERTY COMPILE_OPTIONS ${GLOBAL_COMPILE_OPTIONS})
+    set_property(TARGET ${TRGT} PROPERTY COMPILE_FLAGS ${GLOBAL_COMPILE_FLAGS})
+    set_property(TARGET ${TRGT} PROPERTY C_FLAGS ${GLOBAL_C_FLAGS})
+    set_property(TARGET ${TRGT} PROPERTY CXX_FLAGS ${GLOBAL_CXX_FLAGS})
+    set_property(TARGET ${TRGT} PROPERTY FORTRAN_FLAGS ${GLOBAL_FORTRAN_FLAGS})
+    set_property(TARGET ${TRGT} PROPERTY LIB_LINKINGS ${GLOBAL_LIB_LINKINGS})
+    set_property(TARGET ${TRGT} PROPERTY LIB_INCLUDES ${GLOBAL_LIB_INCLUDES})
+    set_property(TARGET ${TRGT} PROPERTY LIB_OPTIONS ${GLOBAL_LIB_OPTIONS})
+    # link the IR files into a single BC file
+    add_custom_command(OUTPUT ${OUTPUT_LLVM_BC_FILE_PATH}
+        COMMAND ${LLVM_LINK} ${BC_COMPILE_CMD} ${GLOBAL_SOURCES} -o 
+            ${OUTPUT_LLVM_BC_FILE_PATH} ${ADD_CMDS}
+        DEPENDS ${GLOBAL_SOURCES}
+        COMMENT "Linking LLVM IR files into BC file "
+             "${OUTPUT_LLVM_BC_FILE_PATH}"
+        VERBATIM
+    )
 endfunction()
