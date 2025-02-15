@@ -44,8 +44,8 @@ macro(llvmir_setup)
         set(LLVM_CXX_COMPILER ${LLVM_BIN}/clang++)
     endif()
 
-    if (NOT DEFINED LLVM_FORTRAN_COMPILER)
-        set(LLVM_FORTRAN_COMPILER ${LLVM_BIN}/flang-new)
+    if (NOT DEFINED LLVM_Fortran_COMPILER)
+        set(LLVM_Fortran_COMPILER ${LLVM_BIN}/flang-new)
     endif()
 
     if (NOT DEFINED LLVM_OPT)
@@ -71,6 +71,7 @@ macro(llvmir_setup)
     # set the final compiler for the project
     if (NOT DEFINED LLVM_FINAL_COMPILER)
         set(LLVM_FINAL_COMPILER "")
+        set(LLVM_FINAL_COMPILER_LANG "")
     endif()
 
     # set the suffix for LLVM IR files
@@ -128,12 +129,15 @@ macro(llvmir_setup)
     define_property(TARGET PROPERTY CXX_FLAGS
         BRIEF_DOCS "C++ flags"
         FULL_DOCS "C++ flags for the target") 
-    define_property(TARGET PROPERTY FORTRAN_FLAGS
+    define_property(TARGET PROPERTY Fortran_FLAGS
         BRIEF_DOCS "Fortran flags"
         FULL_DOCS "Fortran flags for the target")
-    define_property(TARGET PROPERTY LIB_LINKINGS
-        BRIEF_DOCS "library linkings"
-        FULL_DOCS "library linkings for the target")
+    define_property(TARGET PROPERTY LIB_LINKING_LIB_PATH
+        BRIEF_DOCS "library linking paths, i.e. -L"
+        FULL_DOCS "library linking paths for the target")
+    define_property(TARGET PROPERTY LIB_LINKING_LIBS
+        BRIEF_DOCS "library linking libraries, i.e. -l or absolute path"
+        FULL_DOCS "library linking libraries for the target")
     define_property(TARGET PROPERTY LIB_INCLUDES
         BRIEF_DOCS "library includes"
         FULL_DOCS "library includes for the target")
@@ -144,13 +148,9 @@ macro(llvmir_setup)
 endmacro()
 
 macro(llvmir_set_final_compiler lang)
-    set(COMPILER ${CMAKE_${lang}_COMPILER})
-    set(COMPILER_ID ${CMAKE_${lang}_COMPILER_ID})
-    list(FIND LLVM_COMPILER_IDS ${COMPILER_ID} found)
-    if(found EQUAL -1)
-        message(FATAL_ERROR "LLVM IR compiler ID ${COMPILER_ID} is not in ${LLVM_COMPILER_IDS}")
-    endif()
+    set(COMPILER ${LLVM_${lang}_COMPILER})
     set(LLVM_FINAL_COMPILER ${COMPILER})
+    set(LLVM_FINAL_COMPILER_LANG ${lang})
 endmacro()
 
 function(llvmir_extract_compile_defs_properties out_compile_defs from)
@@ -388,8 +388,10 @@ function(llvmir_extract_library_include out_include link_libs)
   set(${out_include} ${all_include} PARENT_SCOPE)
 endfunction()
 
-function(llvmir_extract_library_linking out_linking link_libs)
-  set(all_linking "")
+function(llvmir_extract_library_linking 
+                            out_linking_lib_paths out_linking_libs link_libs)
+  set(lib_paths "")
+  set(libs "")
   set(static_library_types "STATIC_LIBRARY" "SHARED_LIBRARY")
   set(interface_library_types "INTERFACE_LIBRARY")
 
@@ -399,16 +401,25 @@ function(llvmir_extract_library_linking out_linking link_libs)
       if(type IN_LIST static_library_types)
         get_property(imported_location TARGET ${lib} PROPERTY IMPORTED_LOCATION)
         if(imported_location)
-          list(APPEND all_linking -L${imported_location})
+          if(NOT EXISTS ${imported_location})
+            message(WARNING "Library ${lib} does not exist at ${imported_location}.")
+          else()
+            list(APPEND libs ${imported_location})
+          endif()
         else()
           get_property(binary_bin TARGET ${lib} PROPERTY BINARY_DIR)
           get_property(binary_name TARGET ${lib} PROPERTY NAME)
-          list(APPEND all_linking -L${binary_bin} -l${binary_name})
+          list(APPEND lib_paths -L${binary_bin})
+          list(APPEND libs -l${binary_name})
         endif()
       elseif(type IN_LIST interface_library_types)
         get_property(interface_link_libraries TARGET ${lib} PROPERTY INTERFACE_LINK_LIBRARIES)
         foreach(link_lib ${interface_link_libraries})
-          list(APPEND all_linking -L${link_lib})
+          if(NOT EXISTS ${link_lib})
+            message(WARNING "Library ${link_lib} does not exists.")
+          else()
+            list(APPEND libs ${link_lib})
+          endif()
         endforeach()
       else()
         message(WARNING "Library ${lib} is not a static or interface library.")
@@ -420,7 +431,8 @@ function(llvmir_extract_library_linking out_linking link_libs)
 
   debug("@llvmir_extract_library_linking ${trgt}: ${all_linking}")
 
-  set(${out_linking} ${all_linking} PARENT_SCOPE)
+  set(${out_linking_lib_paths} ${lib_paths} PARENT_SCOPE)
+  set(${out_linking_libs} ${libs} PARENT_SCOPE)
 endfunction()
 
 function(llvmir_extract_library_compile_option out_lib_opt link_libs)
@@ -451,34 +463,6 @@ function(llvmir_extract_library_compile_option out_lib_opt link_libs)
   set(${out_lib_opt} ${lib_opt} PARENT_SCOPE)
 endfunction()
 
-function(llvmir_extract_lang_compiler out_lang_compiler file)
-  set(lang_compiler "")
-  get_filename_component(file_ext "${file}" EXT)
-
-  set(cxx_extensions ".cpp" ".cc" ".cxx" ".c++" ".C")
-  set(fortran_extensions ".f" ".F" ".f90" ".F90" ".f95" ".F95" ".f03" ".F03" ".f08" ".F08")
-  set(c_extensions ".c")
-
-  # Fallback for older CMake versions
-  list(FIND cxx_extensions "${file_ext}" cxx_idx)
-  list(FIND fortran_extensions "${file_ext}" fortran_idx)
-  list(FIND c_extensions "${file_ext}" c_idx)
-
-  if(NOT ${cxx_idx} EQUAL -1)
-    set(lang_compiler "CXX")
-  elseif(NOT ${fortran_idx} EQUAL -1)
-    set(lang_compiler "Fortran")
-  elseif(NOT ${c_idx} EQUAL -1)
-    set(lang_compiler "C")
-  else()
-    message(FATAL_ERROR "Unknown file extension ${file_ext}.")
-  endif()
-
-  debug("@llvmir_extract_lang_compiler ${file}: ${lang_compiler}")
-
-  set(${out_lang_compiler} ${CMAKE_${lang_compiler}_COMPILER} PARENT_SCOPE)
-endfunction()
-
 function(llvmir_extract_file_lang out_lang file_ext)
   set(lang "")
 
@@ -494,7 +478,7 @@ function(llvmir_extract_file_lang out_lang file_ext)
   if(NOT ${cxx_idx} EQUAL -1)
     set(lang "CXX")
   elseif(NOT ${fortran_idx} EQUAL -1)
-    set(lang "FORTRAN")
+    set(lang "Fortran")
   elseif(NOT ${c_idx} EQUAL -1)
     set(lang "C")
   else()
@@ -561,7 +545,6 @@ function(check_lang_flag_works_with_llvm_compiler flag lang result)
     elseif(${lang} STREQUAL "Fortran")
         set(src_file "${test_dir}/test.f90")
         file(WRITE "${src_file}" "program test\nend program\n")
-        set(lang "FORTRAN")
     else()
         message(FATAL_ERROR "Unsupported language: ${lang}")
     endif()
@@ -587,5 +570,4 @@ function(check_lang_flag_works_with_llvm_compiler flag lang result)
     # Clean up test directory
     file(REMOVE_RECURSE ${test_dir})
 endfunction()
-
 

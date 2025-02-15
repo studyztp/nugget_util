@@ -52,7 +52,12 @@ function(llvm_generate_ir_target)
     # Arguments that can take multiple values
     # DEPEND_TARGETS: List of CMake targets to generate IR from
     # ADDITIONAL_COMMANDS: Extra compiler flags to be appended to each compile command
-    set(multiValueArgs DEPEND_TARGETS ADDITIONAL_COMMANDS)
+    set(multiValueArgs 
+        DEPEND_TARGETS 
+        EXTRA_FLAGS 
+        EXTRA_INCLUDES 
+        EXTRA_LIB_PATHS
+        EXTRA_LIBS)
 
     # Parse the function arguments
     cmake_parse_arguments(LLVM_GENERATE 
@@ -64,7 +69,10 @@ function(llvm_generate_ir_target)
 
     set(TRGT ${LLVM_GENERATE_TARGET})
     set(DEP_TRGTS ${LLVM_GENERATE_DEPEND_TARGETS})
-    set(ADD_CMDS ${LLVM_GENERATE_ADDITIONAL_COMMANDS})
+    set(ADD_FLAGS ${LLVM_GENERATE_EXTRA_FLAGS})
+    set(ADD_INCLUDES ${LLVM_GENERATE_EXTRA_INCLUDES})
+    set(ADD_LIB_PATHS ${LLVM_GENERATE_EXTRA_LIB_PATHS})
+    set(ADD_LIBS ${LLVM_GENERATE_EXTRA_LIBS})
 
     if(NOT TRGT)
         message(FATAL_ERROR "llvmir_attach_bc_target: missing TARGET option")
@@ -94,8 +102,10 @@ function(llvm_generate_ir_target)
     set(OUTPUT_LLVM_IR_FILE_PATHS "")
 
     # list of all the library properties
-    # list of all the library linkings, i.e. -L<lib-path>
-    set(GLOBAL_LIB_LINKINGS "")
+    # list of all the library paths, i.e. -L<lib-path>
+    set(GLOBAL_LIB_LINKING_LIB_PATHS "")
+    # list of all the libraries, i.e. -l<lib-path>
+    set(GLOBAL_LIB_LINKING_LIBS "")
     # list of all the library includes, i.e. -I<lib-path>
     set(GLOBAL_LIB_INCLUDES "")
     # list of all the library options, i.e. -fopenmp
@@ -114,7 +124,7 @@ function(llvm_generate_ir_target)
     # list of the language flags, i.e. -std=c++11, -O3
     set(GLOBAL_C_FLAGS "")
     set(GLOBAL_CXX_FLAGS "")
-    set(GLOBAL_FORTRAN_FLAGS "")
+    set(GLOBAL_Fortran_FLAGS "")
 
     # list of all the library targets that the final target will be dependent 
     # on
@@ -170,7 +180,7 @@ function(llvm_generate_ir_target)
         # compiler std flags, i.e. -std=c++11
         llvmir_extract_standard_flags(LOCAL_CXX_STD_FLAGS ${dep_trgt} CXX)
         llvmir_extract_standard_flags(LOCAL_C_STD_FLAGS ${dep_trgt} C)
-        llvmir_extract_standard_flags(LOCAL_FORTRAN_STD_FLAGS ${dep_trgt} Fortran)
+        llvmir_extract_standard_flags(LOCAL_Fortran_STD_FLAGS ${dep_trgt} Fortran)
 
         # compile options
         llvmir_extract_compile_option_properties(
@@ -182,11 +192,12 @@ function(llvm_generate_ir_target)
         # compile lang flags, i.e. -O3
         llvmir_extract_lang_flags(LOCAL_C_FLAGS C)
         llvmir_extract_lang_flags(LOCAL_CXX_FLAGS CXX)
-        llvmir_extract_lang_flags(LOCAL_FORTRAN_FLAGS Fortran)
+        llvmir_extract_lang_flags(LOCAL_Fortran_FLAGS Fortran)
 
         # extract library related properties
         llvmir_extract_library_linking(
-            LOCAL_LIB_LINKING "${NEW_LINK_LIBRARIES}")
+            LOCAL_LIB_LINKING_LIB_PATHS 
+            LOCAL_LIB_LINKING_LIBS "${NEW_LINK_LIBRARIES}")
         llvmir_extract_library_compile_option(
             LOCAL_LIB_OPT "${NEW_LINK_LIBRARIES}")
         llvmir_extract_library_include(
@@ -239,16 +250,17 @@ function(llvm_generate_ir_target)
         # combine the language flags
         catuniq(LOCAL_C_FLAGS ${LOCAL_C_STD_FLAGS} ${LOCAL_C_FLAGS})
         catuniq(LOCAL_CXX_FLAGS ${LOCAL_CXX_STD_FLAGS} ${LOCAL_CXX_FLAGS})
-        catuniq(LOCAL_FORTRAN_FLAGS ${LOCAL_FORTRAN_STD_FLAGS} ${LOCAL_FORTRAN_FLAGS})
+        catuniq(LOCAL_Fortran_FLAGS ${LOCAL_Fortran_STD_FLAGS} ${LOCAL_Fortran_FLAGS})
         
         # add the linekr flags to library linkings
-        catuniq(LOCAL_LIB_LINKINGS ${LOCAL_LINK_FLAGS} ${LOCAL_LIB_LINKING})
+        catuniq(LOCAL_LIB_OPT ${LOCAL_LIB_OPT} ${LOCAL_LINK_FLAGS})
 
         list(APPEND GLOBAL_C_FLAGS ${LOCAL_C_FLAGS})
         list(APPEND GLOBAL_CXX_FLAGS ${LOCAL_CXX_FLAGS})
-        list(APPEND GLOBAL_FORTRAN_FLAGS ${LOCAL_FORTRAN_FLAGS})
+        list(APPEND GLOBAL_Fortran_FLAGS ${LOCAL_Fortran_FLAGS})
 
-        list(APPEND GLOBAL_LIB_LINKINGS ${LOCAL_LIB_LINKING})
+        list(APPEND GLOBAL_LIB_LINKING_LIB_PATHS ${LOCAL_LIB_LINKING_LIB_PATHS})
+        list(APPEND GLOBAL_LIB_LINKING_LIBS ${LOCAL_LIB_LINKING_LIBS})
         list(APPEND GLOBAL_LIB_INCLUDES ${LOCAL_LIB_INCLUDE})
         list(APPEND GLOBAL_LIB_OPTIONS ${LOCAL_LIB_OPT})        
     endforeach()
@@ -259,8 +271,9 @@ function(llvm_generate_ir_target)
     list(REMOVE_DUPLICATES GLOBAL_COMPILE_FLAGS)
     list(REMOVE_DUPLICATES GLOBAL_C_FLAGS)
     list(REMOVE_DUPLICATES GLOBAL_CXX_FLAGS)
-    list(REMOVE_DUPLICATES GLOBAL_FORTRAN_FLAGS)
-    list(REMOVE_DUPLICATES GLOBAL_LIB_LINKINGS)
+    list(REMOVE_DUPLICATES GLOBAL_Fortran_FLAGS)
+    list(REMOVE_DUPLICATES GLOBAL_LIB_LINKING_LIB_PATHS)
+    list(REMOVE_DUPLICATES GLOBAL_LIB_LINKING_LIBS)
     list(REMOVE_DUPLICATES GLOBAL_LIB_INCLUDES)
     list(REMOVE_DUPLICATES GLOBAL_LIB_OPTIONS)
     list(REMOVE_DUPLICATES temp_library_target_list)
@@ -307,7 +320,7 @@ function(llvm_generate_ir_target)
 
     set(temp_list "")
 
-    foreach(flag ${GLOBAL_FORTRAN_FLAGS})
+    foreach(flag ${GLOBAL_Fortran_FLAGS})
         check_lang_flag_works_with_llvm_compiler(${flag} Fortran result)
         if(${result})
             list(APPEND temp_list ${flag})
@@ -316,7 +329,7 @@ function(llvm_generate_ir_target)
         endif()
     endforeach()
 
-    set(GLOBAL_FORTRAN_FLAGS ${temp_list})
+    set(GLOBAL_Fortran_FLAGS ${temp_list})
     # end of checking the flags
 
     message(STATUS "GLOBAL_INCLUDES: ${GLOBAL_INCLUDES}")
@@ -325,8 +338,10 @@ function(llvm_generate_ir_target)
     message(STATUS "GLOBAL_COMPILE_FLAGS: ${GLOBAL_COMPILE_FLAGS}")
     message(STATUS "GLOBAL_C_FLAGS: ${GLOBAL_C_FLAGS}")
     message(STATUS "GLOBAL_CXX_FLAGS: ${GLOBAL_CXX_FLAGS}")
-    message(STATUS "GLOBAL_FORTRAN_FLAGS: ${GLOBAL_FORTRAN_FLAGS}")
-    message(STATUS "GLOBAL_LIB_LINKINGS: ${GLOBAL_LIB_LINKINGS}")
+    message(STATUS "GLOBAL_Fortran_FLAGS: ${GLOBAL_Fortran_FLAGS}")
+    message(STATUS "GLOBAL_LIB_LINKING_LIB_PATHS: "
+                                "${GLOBAL_LIB_LINKING_LIB_PATHS}")
+    message(STATUS "GLOBAL_LIB_LINKING_LIBS: ${GLOBAL_LIB_LINKING_LIBS}")
     message(STATUS "GLOBAL_LIB_INCLUDES: ${GLOBAL_LIB_INCLUDES}")
     message(STATUS "GLOBAL_LIB_OPTIONS: ${GLOBAL_LIB_OPTIONS}")
     message(STATUS "temp_library_target_list: ${temp_library_target_list}")
@@ -392,7 +407,8 @@ function(llvm_generate_ir_target)
                     file(MAKE_DIRECTORY "${FILE_WORKDIR}")
                     if(NOT EXISTS "${FILE_WORKDIR}")
                         message(FATAL_ERROR 
-                            "[llvm_generate_ir_target]: failed to create directory ${FILE_WORKDIR}"
+                            "[llvm_generate_ir_target]: "
+                            "failed to create directory ${FILE_WORKDIR}"
                         )
                     endif()
                 endif()
@@ -414,10 +430,13 @@ function(llvm_generate_ir_target)
 
             # set the compile command for the file
             set(FILE_COMPILE_CMD "-emit-llvm" "-S" ${FILE_LANG_FLAGS}
-                ${GLOBAL_COMPILE_OPTIONS} ${GLOBAL_COMPILE_FLAGS}
-                ${GLOBAL_DEFINITION} ${GLOBAL_INCLUDES}
-                ${GLOBAL_LIB_INCLUDES} ${GLOBAL_LIB_OPTIONS}
-                ${GLOBAL_LIB_LINKINGS}
+                ${GLOBAL_COMPILE_OPTIONS} ${GLOBAL_COMPILE_FLAGS} 
+                ${ADD_FLAGS}
+                ${GLOBAL_DEFINITION} ${GLOBAL_INCLUDES} ${ADD_INCLUDES}
+                ${GLOBAL_LIB_INCLUDES} ${GLOBAL_LIB_OPTIONS} 
+                ${GLOBAL_LIB_LINKING_LIB_PATHS}
+                ${ADD_LIB_PATHS}
+                ${GLOBAL_LIB_LINKING_LIBS} ${ADD_LIBS} 
             )
 
             # add custom command to compile the file
@@ -427,7 +446,6 @@ function(llvm_generate_ir_target)
             add_custom_command(OUTPUT ${OUTPUT_FILEPATH}
                 COMMAND ${FILE_COMPILER} ${FILE_COMPILE_CMD} ${file} 
                     -o ${OUTPUT_FILEPATH} 
-                    ${LLVM_GENERATE_ADDITIONAL_COMMANDS}
                 DEPENDS ${file} ${temp_library_target_list}
                 COMMENT "Generating LLVM IR for ${file} with command:"
                     "${FILE_COMPILER} ${FILE_COMPILE_CMD} ${file} -o "
@@ -458,8 +476,11 @@ function(llvm_generate_ir_target)
     set_property(TARGET ${TRGT} PROPERTY COMPILE_FLAGS ${GLOBAL_COMPILE_FLAGS})
     set_property(TARGET ${TRGT} PROPERTY C_FLAGS ${GLOBAL_C_FLAGS})
     set_property(TARGET ${TRGT} PROPERTY CXX_FLAGS ${GLOBAL_CXX_FLAGS})
-    set_property(TARGET ${TRGT} PROPERTY FORTRAN_FLAGS ${GLOBAL_FORTRAN_FLAGS})
-    set_property(TARGET ${TRGT} PROPERTY LIB_LINKINGS ${GLOBAL_LIB_LINKINGS})
+    set_property(TARGET ${TRGT} PROPERTY Fortran_FLAGS ${GLOBAL_Fortran_FLAGS})
+    set_property(TARGET ${TRGT} PROPERTY LIB_LINKING_LIB_PATHS 
+        ${GLOBAL_LIB_LINKING_LIB_PATHS})
+    set_property(TARGET ${TRGT} PROPERTY LIB_LINKING_LIBS
+        ${GLOBAL_LIB_LINKING_LIBS})
     set_property(TARGET ${TRGT} PROPERTY LIB_INCLUDES ${GLOBAL_LIB_INCLUDES})
     set_property(TARGET ${TRGT} PROPERTY LIB_OPTIONS ${GLOBAL_LIB_OPTIONS})
 
@@ -519,8 +540,10 @@ function(llvm_link_ir_into_bc_target)
     set(OUTPUT_LLVM_BC_FILE_PATH "")
 
     # list of all the library properties
-    # list of all the library linkings, i.e. -L<lib-path>
-    set(GLOBAL_LIB_LINKINGS "")
+    # list of all the library paths, i.e. -L<lib-path>
+    set(GLOBAL_LIB_LINKING_LIB_PATHS "")
+    # list of all the libraries, i.e. -l<lib-path>
+    set(GLOBAL_LIB_LINKING_LIBS "")
     # list of all the library includes, i.e. -I<lib-path>
     set(GLOBAL_LIB_INCLUDES "")
     # list of all the library options, i.e. -fopenmp
@@ -539,7 +562,7 @@ function(llvm_link_ir_into_bc_target)
     # list of the language flags, i.e. -std=c++11, -O3
     set(GLOBAL_C_FLAGS "")
     set(GLOBAL_CXX_FLAGS "")
-    set(GLOBAL_FORTRAN_FLAGS "")
+    set(GLOBAL_Fortran_FLAGS "")
 
     set(WORK_DIR "${CMAKE_CURRENT_BINARY_DIR}/${LLVM_BC_OUTPUT_DIR}/${TRGT}")
     if(NOT EXISTS "${WORK_DIR}")
@@ -564,10 +587,12 @@ function(llvm_link_ir_into_bc_target)
             PROPERTY COMPILE_FLAGS)
         get_property(LOCAL_C_FLAGS TARGET ${dep_trgt} PROPERTY C_FLAGS)
         get_property(LOCAL_CXX_FLAGS TARGET ${dep_trgt} PROPERTY CXX_FLAGS)
-        get_property(LOCAL_FORTRAN_FLAGS TARGET ${dep_trgt} 
-            PROPERTY FORTRAN_FLAGS)
-        get_property(LOCAL_LIB_LINKINGS TARGET ${dep_trgt} 
-            PROPERTY LIB_LINKINGS)
+        get_property(LOCAL_Fortran_FLAGS TARGET ${dep_trgt} 
+            PROPERTY Fortran_FLAGS)
+        get_property(LOCAL_LIB_LINKING_LIB_PATHS TARGET ${dep_trgt} 
+            PROPERTY LIB_LINKING_LIB_PATHS)
+        get_property(LOCAL_LIB_LINKING_LIBS TARGET ${dep_trgt}
+            PROPERTY LIB_LINKING_LIBS)
         get_property(LOCAL_LIB_INCLUDES TARGET ${dep_trgt} 
             PROPERTY LIB_INCLUDES)
         get_property(LOCAL_LIB_OPTIONS TARGET ${dep_trgt} PROPERTY LIB_OPTIONS)
@@ -581,10 +606,12 @@ function(llvm_link_ir_into_bc_target)
             ${GLOBAL_COMPILE_FLAGS})
         catuniq(GLOBAL_C_FLAGS ${LOCAL_C_FLAGS} ${GLOBAL_C_FLAGS})
         catuniq(GLOBAL_CXX_FLAGS ${LOCAL_CXX_FLAGS} ${GLOBAL_CXX_FLAGS})
-        catuniq(GLOBAL_FORTRAN_FLAGS ${LOCAL_FORTRAN_FLAGS} 
-            ${GLOBAL_FORTRAN_FLAGS})
-        catuniq(GLOBAL_LIB_LINKINGS ${LOCAL_LIB_LINKINGS} 
-            ${GLOBAL_LIB_LINKINGS})
+        catuniq(GLOBAL_Fortran_FLAGS ${LOCAL_Fortran_FLAGS} 
+            ${GLOBAL_Fortran_FLAGS})
+        catuniq(GLOBAL_LIB_LINKING_LIB_PATHS ${LOCAL_LIB_LINKING_LIB_PATHS} 
+            ${GLOBAL_LIB_LINKING_LIB_PATHS})
+        catuniq(GLOBAL_LIB_LINKING_LIBS ${LOCAL_LIB_LINKING_LIBS}
+            ${GLOBAL_LIB_LINKING_LIBS})
         catuniq(GLOBAL_LIB_INCLUDES ${LOCAL_LIB_INCLUDES} 
             ${GLOBAL_LIB_INCLUDES})
         catuniq(GLOBAL_LIB_OPTIONS ${LOCAL_LIB_OPTIONS} ${GLOBAL_LIB_OPTIONS})
@@ -596,8 +623,9 @@ function(llvm_link_ir_into_bc_target)
     list(REMOVE_DUPLICATES GLOBAL_COMPILE_FLAGS)
     list(REMOVE_DUPLICATES GLOBAL_C_FLAGS)
     list(REMOVE_DUPLICATES GLOBAL_CXX_FLAGS)
-    list(REMOVE_DUPLICATES GLOBAL_FORTRAN_FLAGS)
-    list(REMOVE_DUPLICATES GLOBAL_LIB_LINKINGS)
+    list(REMOVE_DUPLICATES GLOBAL_Fortran_FLAGS)
+    list(REMOVE_DUPLICATES GLOBAL_LIB_LINKING_LIB_PATHS)
+    list(REMOVE_DUPLICATES GLOBAL_LIB_LINKING_LIBS)
     list(REMOVE_DUPLICATES GLOBAL_LIB_INCLUDES)
     list(REMOVE_DUPLICATES GLOBAL_LIB_OPTIONS)
 
@@ -607,8 +635,10 @@ function(llvm_link_ir_into_bc_target)
     message(STATUS "GLOBAL_COMPILE_FLAGS: ${GLOBAL_COMPILE_FLAGS}")
     message(STATUS "GLOBAL_C_FLAGS: ${GLOBAL_C_FLAGS}")
     message(STATUS "GLOBAL_CXX_FLAGS: ${GLOBAL_CXX_FLAGS}")
-    message(STATUS "GLOBAL_FORTRAN_FLAGS: ${GLOBAL_FORTRAN_FLAGS}")
-    message(STATUS "GLOBAL_LIB_LINKINGS: ${GLOBAL_LIB_LINKINGS}")
+    message(STATUS "GLOBAL_Fortran_FLAGS: ${GLOBAL_Fortran_FLAGS}")
+    message(STATUS "GLOBAL_LIB_LINKING_LIB_PATHS: "
+                                "${GLOBAL_LIB_LINKING_LIB_PATHS}")
+    message(STATUS "GLOBAL_LIB_LINKING_LIBS: ${GLOBAL_LIB_LINKING_LIBS}")
     message(STATUS "GLOBAL_LIB_INCLUDES: ${GLOBAL_LIB_INCLUDES}")
     message(STATUS "GLOBAL_LIB_OPTIONS: ${GLOBAL_LIB_OPTIONS}")
 
@@ -638,25 +668,32 @@ function(llvm_link_ir_into_bc_target)
     set_property(TARGET ${TRGT} PROPERTY COMPILE_FLAGS ${GLOBAL_COMPILE_FLAGS})
     set_property(TARGET ${TRGT} PROPERTY C_FLAGS ${GLOBAL_C_FLAGS})
     set_property(TARGET ${TRGT} PROPERTY CXX_FLAGS ${GLOBAL_CXX_FLAGS})
-    set_property(TARGET ${TRGT} PROPERTY FORTRAN_FLAGS ${GLOBAL_FORTRAN_FLAGS})
-    set_property(TARGET ${TRGT} PROPERTY LIB_LINKINGS ${GLOBAL_LIB_LINKINGS})
+    set_property(TARGET ${TRGT} PROPERTY Fortran_FLAGS ${GLOBAL_Fortran_FLAGS})
+    set_property(TARGET ${TRGT} PROPERTY LIB_LINKING_LIB_PATHS 
+        ${GLOBAL_LIB_LINKING_LIB_PATHS})
+    set_property(TARGET ${TRGT} PROPERTY LIB_LINKING_LIBS
+        ${GLOBAL_LIB_LINKING_LIBS})
     set_property(TARGET ${TRGT} PROPERTY LIB_INCLUDES ${GLOBAL_LIB_INCLUDES})
     set_property(TARGET ${TRGT} PROPERTY LIB_OPTIONS ${GLOBAL_LIB_OPTIONS})
 endfunction()
 
-function(llvm_compile_executable)
+function(llvm_compile_into_executable_target)
     # List of options without values (boolean flags)
     set(options)
 
     # Arguments that take exactly one value
     # TARGET: Name of the output executable target to be generated
-    set(oneValueArgs TARGET)
+    set(oneValueArgs TARGET DEPEND_TARGET)
 
     # Arguments that can take multiple values
     # DEPEND_TARGETS: List of CMake targets to generate BC from
     # ADDITIONAL_COMMANDS: Extra compiler flags to be appended to each compile 
     # command
-    set(multiValueArgs DEPEND_TARGETS ADDITIONAL_COMMANDS)
+    set(multiValueArgs 
+        EXTRA_FLAGS 
+        EXTRA_LIB_PATHS
+        EXTRA_LIBS
+    )
 
     # Parse the function arguments
     cmake_parse_arguments(LLVM_GENERATE 
@@ -666,10 +703,112 @@ function(llvm_compile_executable)
         ${ARGN}
     )
 
-    set(TRGT ${LLVM_GENERATE_TARGET})
-    set(DEP_TRGTS ${LLVM_GENERATE_DEPEND_TARGETS})
-    set(ADD_CMDS ${LLVM_GENERATE_ADDITIONAL_COMMANDS})
+    if(LLVM_FINAL_COMPILER STREQUAL "")
+        message(FATAL_ERROR 
+            "llvm_compile_executable: LLVM_FINAL_COMPILER is not set"
+            " - please run llvmir_set_final_compiler(lang) to set the compiler"
+            " - lang, i.e. C, CXX, Fortran"
+        )
+    endif()
 
+    set(TRGT ${LLVM_GENERATE_TARGET})
+    set(DEP_TRGT ${LLVM_GENERATE_DEPEND_TARGET})
+    set(ADD_FLAGS ${LLVM_GENERATE_EXTRA_FLAGS})
+    set(ADD_INCLUDES ${LLVM_GENERATE_EXTRA_INCLUDES})
+    set(ADD_LIB_PATHS ${LLVM_GENERATE_EXTRA_LIB_PATHS})
+    set(ADD_LIBS ${LLVM_GENERATE_EXTRA_LIBS})
+
+    if(NOT TRGT)
+        message(FATAL_ERROR "llvm_compile_executable: missing TARGET option")
+    endif()
+
+    if(NOT DEP_TRGT)
+        message(FATAL_ERROR 
+            "llvm_compile_executable: missing DEPEND_TARGET option")
+    endif()
+
+    # check if the necessary properties are set
+    # for this function, we need the LLVM_TYPE property to be LLVM_BC_TYPE
+    # or LLVM_OBJ_TYPE
     
+    get_property(target_type TARGET ${DEP_TRGT} PROPERTY LLVM_TYPE)
+    # Check if it equals LLVM_BC_TYPE or LLVM_OBJ_TYPE
+    if(NOT "${target_type}" STREQUAL "${LLVM_BC_TYPE}" AND
+        NOT "${target_type}" STREQUAL "${LLVM_OBJ_TYPE}")
+        # Property matches LLVM_BC_TYPE or LLVM_OBJ_TYPE
+        message(FATAL_ERROR "Target ${DEP_TRGT} is not of type LLVM_BC"
+            " or LLVM_OBJ - cannot compile executable"
+            " - it is of type ${target_type}")
+    endif()
+
+    # only one target can be generated into an executable so we don't need to
+    # have a list of global properties
+
+    set(WORK_DIR "${CMAKE_CURRENT_BINARY_DIR}/${LLVM_EXE_OUTPUT_DIR}/${TRGT}")
+    if(NOT EXISTS "${WORK_DIR}")
+        file(MAKE_DIRECTORY "${WORK_DIR}")
+        if(NOT EXISTS "${WORK_DIR}")
+            message(FATAL_ERROR 
+                "[llvm_compile_executable]: "
+                    "failed to create directory ${WORK_DIR}"
+            )
+        endif()
+    endif()
+    set(OUTPUT_FILENAME "${TRGT}")
+    set(OUTPUT_LLVM_EXE_FILE_PATH "${WORK_DIR}/${OUTPUT_FILENAME}")
+
+    get_property(INPUT_FILE TARGET ${DEP_TRGT} PROPERTY LLVM_GENERATED_FILES)
+    get_property(INCLUDE TARGET ${DEP_TRGT} PROPERTY INCLUDES)
+    get_property(DEFINITION TARGET ${DEP_TRGT} PROPERTY DEFINITION)
+    get_property(COMPILE_OPTIONS TARGET ${DEP_TRGT} PROPERTY COMPILE_OPTIONS)
+    get_property(COMPILE_FLAGS TARGET ${DEP_TRGT} PROPERTY COMPILE_FLAGS)
+    get_property(C_FLAGS TARGET ${DEP_TRGT} PROPERTY C_FLAGS)
+    get_property(CXX_FLAGS TARGET ${DEP_TRGT} PROPERTY CXX_FLAGS)
+    get_property(Fortran_FLAGS TARGET ${DEP_TRGT} PROPERTY Fortran_FLAGS)
+    get_property(LIB_LINKING_LIB_PATHS TARGET ${DEP_TRGT} 
+        PROPERTY LIB_LINKING_LIB_PATHS)
+    get_property(LIB_LINKING_LIBS TARGET ${DEP_TRGT}
+        PROPERTY LIB_LINKING_LIBS)
+    get_property(LIB_INCLUDES TARGET ${DEP_TRGT} PROPERTY LIB_INCLUDES)
+    get_property(LIB_OPTIONS TARGET ${DEP_TRGT} PROPERTY LIB_OPTIONS)
+    
+    set(FILE_COMPILE_CMD ${${LLVM_FINAL_COMPILER_LANG}_FLAGS} 
+        ${COMPILE_OPTIONS} ${COMPILE_FLAGS} ${LIB_OPTIONS} ${ADD_FLAGS}
+        ${LIB_LINKING_LIB_PATHS} ${ADD_LIB_PATHS}
+        -Wl,--start-group ${LIB_LINKING_LIBS} ${ADD_LIBS} -Wl,--end-group
+        )
+    
+    # add custom command to compile the executable
+    add_custom_command(OUTPUT ${OUTPUT_LLVM_EXE_FILE_PATH}
+        COMMAND ${LLVM_FINAL_COMPILER} ${INPUT_FILE} ${FILE_COMPILE_CMD}
+            -o ${OUTPUT_LLVM_EXE_FILE_PATH} ${ADD_CMDS}
+        DEPENDS ${INPUT_FILE}
+        COMMENT "Compiling executable from ${INPUT_FILE} with command:"
+            "${LLVM_FINAL_COMPILER} ${FILE_COMPILE_CMD} ${INPUT_FILE} -o "
+            "${OUTPUT_LLVM_EXE_FILE_PATH} ${ADD_CMDS}"
+            VERBATIM)
+    
+    # add custom target to generate the executable
+    add_custom_target(${TRGT} ALL DEPENDS ${OUTPUT_LLVM_EXE_FILE_PATH})
+    # set the LLVM_TYPE to LLVM_EXE_TYPE
+    set_property(TARGET ${TRGT} PROPERTY LLVM_TYPE ${LLVM_EXE_TYPE})
+    set_property(TARGET ${TRGT} PROPERTY LLVM_SOURCE_FILES ${INPUT_FILE})
+    set_property(TARGET ${TRGT} PROPERTY LLVM_CUSTOM_OUTPUT_DIR ${WORK_DIR})
+    set_property(TARGET ${TRGT} 
+        PROPERTY LLVM_GENERATED_FILES ${OUTPUT_LLVM_EXE_FILE_PATH})
+    # setup the properties to carry forward
+    set_property(TARGET ${TRGT} PROPERTY INCLUDES ${INCLUDE})
+    set_property(TARGET ${TRGT} PROPERTY DEFINITION ${DEFINITION})
+    set_property(TARGET ${TRGT} PROPERTY COMPILE_OPTIONS ${COMPILE_OPTIONS})
+    set_property(TARGET ${TRGT} PROPERTY COMPILE_FLAGS ${COMPILE_FLAGS})
+    set_property(TARGET ${TRGT} PROPERTY C_FLAGS ${C_FLAGS})
+    set_property(TARGET ${TRGT} PROPERTY CXX_FLAGS ${CXX_FLAGS})
+    set_property(TARGET ${TRGT} PROPERTY Fortran_FLAGS ${Fortran_FLAGS})
+    set_property(TARGET ${TRGT} PROPERTY LIB_LINKING_LIB_PATHS 
+        ${LIB_LINKING_LIB_PATHS})
+    set_property(TARGET ${TRGT} PROPERTY LIB_LINKING_LIBS
+        ${LIB_LINKING_LIBS})
+    set_property(TARGET ${TRGT} PROPERTY LIB_INCLUDES ${LIB_INCLUDES})
+    set_property(TARGET ${TRGT} PROPERTY LIB_OPTIONS ${LIB_OPTIONS})
 
 endfunction()
