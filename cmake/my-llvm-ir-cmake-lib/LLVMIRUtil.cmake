@@ -212,6 +212,16 @@ function(llvm_generate_ir_target)
     list(REMOVE_DUPLICATES GLOBAL_LIB_OPTIONS)
     list(REMOVE_DUPLICATES temp_library_target_list)
 
+    set(new_temp_library_target_list "")
+
+    foreach(lib ${temp_library_target_list})
+        if(TARGET ${lib})
+            list(APPEND new_temp_library_target_list ${lib})
+        endif()
+    endforeach()
+
+    set(temp_library_target_list ${new_temp_library_target_list})
+
     message(STATUS "GLOBAL_INCLUDES: ${GLOBAL_INCLUDES}")
     message(STATUS "GLOBAL_DEFINITION: ${GLOBAL_DEFINITION}")
     message(STATUS "GLOBAL_COMPILE_OPTIONS: ${GLOBAL_COMPILE_OPTIONS}")
