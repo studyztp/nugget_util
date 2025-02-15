@@ -1,10 +1,14 @@
-ifndef LLVM_DIR
-  $(error LLVM_DIR is not set)
+ifndef LLVM_BIN
+  $(error LLVM_BIN is not set)
 endif
 
-LLVM_BIN = ${LLVM_DIR}/bin
-LLVM_LIB = ${LLVM_DIR}/lib
-LLVM_INCLUDE = ${LLVM_DIR}/include
+ifndef LLVM_LIB
+  $(error LLVM_LIB is not set)
+endif
+
+ifndef LLVM_INCLUDE
+  $(error LLVM_INCLUDE is not set)
+endif
 
 LLVM_CLANG++ = ${LLVM_BIN}/clang++
 
