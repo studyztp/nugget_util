@@ -18,7 +18,7 @@ else
     NCURSES_LIB = -lncurses
 endif
 
-all: check-cpu-features
+all: check-cpu-features 
 
 check-cpu-features: check-cpu-features.cpp
 	${LLVM_CLANG++} -I${LLVM_INCLUDE} -L${LLVM_LIB} check-cpu-features.cpp -o check-cpu-features \
@@ -27,4 +27,4 @@ check-cpu-features: check-cpu-features.cpp
         $(NCURSES_LIB)
 
 clean:
-	rm -f check-cpu-features
+	rm -f check-cpu-features *.txt
