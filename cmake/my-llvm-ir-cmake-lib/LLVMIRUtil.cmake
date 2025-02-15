@@ -10,21 +10,61 @@ include(CMakeParseArguments)
 
 include(LLVMIRUtilInternal)
 
-###
-
-llvmir_setup()
-
-###
-
 function(llvm_generate_ir_target)
-    set(options ADDITIONAL_COMMANDS)
+    # Generate LLVM IR for specified targets and combine their properties.
+    #
+    # This function processes source files from dependent targets to generate
+    # LLVM IR files. Each source file is compiled separately to maintain proper
+    # dependency tracking and IR generation.
+    #
+    # Usage:
+    #   llvm_generate_ir_target(
+    #       TARGET <target-name>
+    #       DEPEND_TARGETS <target1> [<target2> ...]
+    #       [ADDITIONAL_COMMANDS <cmd1> [<cmd2> ...]]
+    #   )
+    #
+    # The function combines and applies the following properties from all 
+    # dependent targets:
+    # * Include directories
+    # * Compile definitions
+    # * Compile options and flags
+    # * Language-specific flags (C/C++/Fortran)
+    # * Library dependencies and their properties
+    #
+    # Note: Generated IR files are not automatically linked. Use LLVM tools
+    # for IR linking if needed.
+    #
+    # Arguments:
+    #   TARGET              - Name of the output target containing generated IR
+    # files
+    #   DEPEND_TARGETS      - List of targets whose sources will be compiled to
+    # IR
+    #   ADDITIONAL_COMMANDS - (Optional) Extra compiler flags for IR generation
+
+    # List of options without values (boolean flags)
+    set(options)
+
+    # Arguments that take exactly one value
+    # TARGET: Name of the output IR target to be generated
     set(oneValueArgs TARGET)
-    set(multiValueArgs DEPEND_TARGETS)
+
+    # Arguments that can take multiple values
+    # DEPEND_TARGETS: List of CMake targets to generate IR from
+    # ADDITIONAL_COMMANDS: Extra compiler flags to be appended to each compile command
+    set(multiValueArgs DEPEND_TARGETS ADDITIONAL_COMMANDS)
+
+    # Parse the function arguments
     cmake_parse_arguments(LLVM_GENERATE 
-    "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+        "${options}" 
+        "${oneValueArgs}" 
+        "${multiValueArgs}" 
+        ${ARGN}
+    )
 
     set(TRGT ${LLVM_GENERATE_TARGET})
     set(DEP_TRGTS ${LLVM_GENERATE_DEPEND_TARGETS})
+    set(ADD_CMDS ${LLVM_GENERATE_ADDITIONAL_COMMANDS})
 
     if(NOT TRGT)
         message(FATAL_ERROR "llvmir_attach_bc_target: missing TARGET option")
@@ -40,66 +80,78 @@ function(llvm_generate_ir_target)
         get_property(LOCAL_FILES TARGET ${dep_trgt} PROPERTY SOURCES)
         if(NOT LOCAL_FILES)
             message(FATAL_ERROR 
-                "llvm_generate_ir_target: missing SOURCES property for target ${dep_trgt}"
+                "llvm_generate_ir_target: missing SOURCES property for target "
+                "${dep_trgt}"
             )
         endif()
     endforeach()
 
     # setup global lists to store the properties of all targets
 
-    # list of all the output files and their names
+    # list of all the source files
     set(GLOBAL_SOURCES "")
+    # list of all the generated IR files
     set(OUTPUT_LLVM_IR_FILE_PATHS "")
 
-    # list of all the dependencies
+    # list of all the library properties
+    # list of all the library linkings, i.e. -L<lib-path>
     set(GLOBAL_LIB_LINKINGS "")
+    # list of all the library includes, i.e. -I<lib-path>
     set(GLOBAL_LIB_INCLUDES "")
+    # list of all the library options, i.e. -fopenmp
     set(GLOBAL_LIB_OPTIONS "")
 
     # list of all the include directories
     set(GLOBAL_INCLUDES "")
+    # list of all the compile definitions
     set(GLOBAL_DEFINITION "")
 
+    # list of all the compile options
     set(GLOBAL_COMPILE_OPTIONS "")
+    # list of all the compile flags
     set(GLOBAL_COMPILE_FLAGS "")
 
-    # list of the language flags
+    # list of the language flags, i.e. -std=c++11, -O3
     set(GLOBAL_C_FLAGS "")
     set(GLOBAL_CXX_FLAGS "")
     set(GLOBAL_FORTRAN_FLAGS "")
 
+    # list of all the library targets that the final target will be dependent 
+    # on
     set(temp_library_target_list "")
 
+    # will exclude all the header file from the source files but make sure to
+    # include the header files in the include directories
     set(header_exts ".h;.hh;.hpp;.h++;.hxx;.txt")
+    # will exclude all the files with these extensions
     set(exclude_exts ".md;.txt")
     
+    # the work directory where the IR files will be generated
     set(WORK_DIR "${CMAKE_CURRENT_BINARY_DIR}/${LLVM_IR_OUTPUT_DIR}/${TRGT}")
     if(NOT EXISTS "${WORK_DIR}")
-        file(MAKE_DIRECTORY "${WORK_DIR}" RESULT_VARIABLE result)
-    else()
-        set(result "")  # Empty string means success
-    endif()
-
-    if("${result}" STREQUAL "")
-        # Directory created successfully or already exists
-        # message(STATUS "Created directory: ${WORK_DIR}")
-    else()
-        message(FATAL_ERROR 
-            "[llvm_generate_ir_target]: failed to create directory ${WORK_DIR}: ${result}"
-        )
+        file(MAKE_DIRECTORY "${WORK_DIR}")
+        if(NOT EXISTS "${WORK_DIR}")
+            message(FATAL_ERROR 
+                "[llvm_generate_ir_target]: failed to create directory ${WORK_DIR}"
+            )
+        endif()
     endif()
 
     foreach(dep_trgt ${DEP_TRGTS})
         # get the properties of the target
         get_property(LOCAL_FILES TARGET ${dep_trgt} PROPERTY SOURCES)
         get_property(LOCAL_LINK_FLAGS TARGET ${dep_trgt} PROPERTY LINK_FLAGS)
+        # all the libraries that are linked to this target, i.e. using 
+        # target_link_libraries
         get_property(LOCAL_LINK_LIBRARIES
             TARGET ${dep_trgt}
             PROPERTY LINK_LIBRARIES
         )
-        # remove the depend targets from the link libraries
+        
+        # we will remove all the targets in the dependency list from the
+        # link libraries list because we will be generating the IR for them
+        # and we don't want to link them again
         set(dep_targets_list ${DEP_TRGTS})
-
         # Check if library is in dependency list
         set(NEW_LINK_LIBRARIES "")
         foreach(lib ${LOCAL_LINK_LIBRARIES})
@@ -107,16 +159,15 @@ function(llvm_generate_ir_target)
                 list(APPEND NEW_LINK_LIBRARIES "${lib}")
             endif()
         endforeach()
-
         list(APPEND temp_library_target_list ${NEW_LINK_LIBRARIES})
 
-        # compile definitions
+        # extract compile definitions, i.e. -D<def>
         llvmir_extract_compile_defs_properties(LOCAL_DEFS ${dep_trgt})
 
-        # include
+        # extract include directories, i.e. -I<dir>
         llvmir_extract_include_dirs_properties(LOCAL_INCLUDES ${dep_trgt})
 
-        # compile std flags, i.e. -std=c++11
+        # compiler std flags, i.e. -std=c++11
         llvmir_extract_standard_flags(LOCAL_CXX_STD_FLAGS ${dep_trgt} CXX)
         llvmir_extract_standard_flags(LOCAL_C_STD_FLAGS ${dep_trgt} C)
         llvmir_extract_standard_flags(LOCAL_FORTRAN_STD_FLAGS ${dep_trgt} Fortran)
@@ -128,12 +179,11 @@ function(llvm_generate_ir_target)
         # compile flags
         llvmir_extract_compile_flags(LOCAL_COMPILE_FLAGS ${dep_trgt})
 
-        # compile lang flags
+        # compile lang flags, i.e. -O3
         llvmir_extract_lang_flags(LOCAL_C_FLAGS C)
         llvmir_extract_lang_flags(LOCAL_CXX_FLAGS CXX)
         llvmir_extract_lang_flags(LOCAL_FORTRAN_FLAGS Fortran)
 
-        # extract library related properties
         # extract library related properties
         llvmir_extract_library_linking(
             LOCAL_LIB_LINKING "${NEW_LINK_LIBRARIES}")
@@ -145,7 +195,7 @@ function(llvm_generate_ir_target)
         set(temp_include "")
         set(excluded_files "")
 
-        # Find all header files in the source
+        # Find all header files and excluded files in the source
         foreach(IN_FILE ${LOCAL_FILES})
             # Get file extension
             get_filename_component(FILE_EXT "${IN_FILE}" EXT)
@@ -158,6 +208,7 @@ function(llvm_generate_ir_target)
             # Check if it's a header file
             list(FIND header_exts "${FILE_EXT_LOWER}" header_index)
             if(header_index GREATER -1)
+                # remove the header file from the source files
                 list(REMOVE_ITEM LOCAL_FILES "${IN_FILE}")
                 list(APPEND temp_include "-I${FILE_DIR}")
             endif()
@@ -178,8 +229,6 @@ function(llvm_generate_ir_target)
         if(excluded_files AND LOCAL_FILES)
             list(REMOVE_DUPLICATES excluded_files)
             list(REMOVE_ITEM LOCAL_FILES ${excluded_files})
-        else()
-            message(STATUS "No files to exclude")
         endif()
 
         list(APPEND GLOBAL_INCLUDES ${LOCAL_INCLUDES})
@@ -187,6 +236,7 @@ function(llvm_generate_ir_target)
         list(APPEND GLOBAL_COMPILE_OPTIONS ${LOCAL_COMPILE_OPTIONS})
         list(APPEND GLOBAL_COMPILE_FLAGS ${LOCAL_COMPILE_FLAGS})
         
+        # combine the language flags
         catuniq(LOCAL_C_FLAGS ${LOCAL_C_STD_FLAGS} ${LOCAL_C_FLAGS})
         catuniq(LOCAL_CXX_FLAGS ${LOCAL_CXX_STD_FLAGS} ${LOCAL_CXX_FLAGS})
         catuniq(LOCAL_FORTRAN_FLAGS ${LOCAL_FORTRAN_STD_FLAGS} ${LOCAL_FORTRAN_FLAGS})
@@ -214,6 +264,8 @@ function(llvm_generate_ir_target)
 
     set(new_temp_library_target_list "")
 
+    # check if the library targets are valid, if not, remove them from the list
+    # of dependencies
     foreach(lib ${temp_library_target_list})
         if(TARGET ${lib})
             list(APPEND new_temp_library_target_list ${lib})
@@ -221,6 +273,48 @@ function(llvm_generate_ir_target)
     endforeach()
 
     set(temp_library_target_list ${new_temp_library_target_list})
+
+    # from here we will check if the flags are supported by the LLVM compilers,
+    # if not, we will remove them from the list
+    set(temp_list "")
+
+    foreach(flag ${GLOBAL_C_FLAGS})
+        check_cxx_flag_works(${flag} C result)
+        if(${result})
+            list(APPEND temp_list ${flag})
+        else()
+            message(WARNING "Flag ${flag} is not supported by the LLVM Clang")
+        endif()
+    endforeach()
+
+    set(GLOBAL_C_FLAGS ${temp_list})
+
+    set(temp_list "")
+
+    foreach(flag ${GLOBAL_CXX_FLAGS})
+        check_cxx_flag_works(${flag} CXX result)
+        if(${result})
+            list(APPEND temp_list ${flag})
+        else()
+            message(WARNING "Flag ${flag} is not supported by the LLVM Clang++")
+        endif()
+    endforeach()
+
+    set(GLOBAL_CXX_FLAGS ${temp_list})
+
+    set(temp_list "")
+
+    foreach(flag ${GLOBAL_FORTRAN_FLAGS})
+        check_cxx_flag_works(${flag} Fortran result)
+        if(${result})
+            list(APPEND temp_list ${flag})
+        else()
+            message(WARNING "Flag ${flag} is not supported by the LLVM Flang")
+        endif()
+    endforeach()
+
+    set(GLOBAL_FORTRAN_FLAGS ${temp_list})
+    # end of checking the flags
 
     message(STATUS "GLOBAL_INCLUDES: ${GLOBAL_INCLUDES}")
     message(STATUS "GLOBAL_DEFINITION: ${GLOBAL_DEFINITION}")
@@ -233,31 +327,32 @@ function(llvm_generate_ir_target)
     message(STATUS "GLOBAL_LIB_INCLUDES: ${GLOBAL_LIB_INCLUDES}")
     message(STATUS "GLOBAL_LIB_OPTIONS: ${GLOBAL_LIB_OPTIONS}")
     message(STATUS "temp_library_target_list: ${temp_library_target_list}")
+    message(STATUS "ADD_CMDS: ${ADD_CMDS}")
 
 
     # all the properties are set, now we can generate the IR
     foreach(dep_trgt ${DEP_TRGTS})
+        # each dependent target will have its own work directory to distinguish
+        # the generated IR files and for better debugging
         set(TARGET_WORKDIR ${WORK_DIR}/${dep_trgt})
         if(NOT EXISTS "${TARGET_WORKDIR}")
-            file(MAKE_DIRECTORY "${TARGET_WORKDIR}" result)
-        else()
-            set(result "")
-        endif()
-        if("${result}" STREQUAL "")
-            # Directory created successfully or already exists
-            # message(STATUS "Created directory: ${WORK_DIR}")
-        else()
-            message(FATAL_ERROR 
-                "[llvm_generate_ir_target]: failed to create directory ${WORK_DIR}: ${result}"
-            )
+            file(MAKE_DIRECTORY "${TARGET_WORKDIR}")
+            if(NOT EXISTS "${TARGET_WORKDIR}")
+                message(FATAL_ERROR 
+                    "[llvm_generate_ir_target]: failed to create directory ${TARGET_WORKDIR}"
+                )
+            endif()
         endif()
 
         get_property(LOCAL_FILES TARGET ${dep_trgt} PROPERTY SOURCES)
 
         foreach(file ${LOCAL_FILES})
+            # filename is with the extension, i.e. file.cpp
             cmake_path(GET file FILENAME filename)
+            # stem is the filename without the extension, i.e. file
             cmake_path(GET file STEM stem)
-            # Get file extension
+
+            # Get file extension, i.e. .cpp
             get_filename_component(file_ext "${file}" EXT)
             # Convert extension to lowercase
             string(TOLOWER "${file_ext}" file_ext_lower)
@@ -266,49 +361,55 @@ function(llvm_generate_ir_target)
             # Check if it's a header file
             list(FIND header_exts "${file_ext_lower}" header_index)
             if(header_index GREATER -1)
+                # skip header files
                 continue()
             endif()
 
             # Check if it's an excluded file
             list(FIND exclude_exts "${file_ext_lower}" exclude_index)
             if(exclude_index GREATER -1)
+                # skip excluded files
                 continue()
             endif()
 
-            # get the relative path of the file
+            # get the relative path of the file, i.e. src/file.cpp
             cmake_path(RELATIVE_PATH file 
                BASE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
                OUTPUT_VARIABLE rel_path)
             if(rel_path)
+                # If the file has a relative path (e.g., "src/core/file.cpp"),
+                # create a matching directory structure in the output 
+                # directory. 
+                # This preserves the source tree organization and prevents name
+                # conflicts when multiple files have the same name but live in 
+                # different directories.
                 cmake_path(REMOVE_FILENAME rel_path OUTPUT_VARIABLE dir)
                 set(FILE_WORKDIR ${TARGET_WORKDIR}/${dir})
                 if(NOT EXISTS "${FILE_WORKDIR}")
-                    file(MAKE_DIRECTORY "${FILE_WORKDIR}" result)
-                else()
-                    set(result "")
-                endif()
-                if("${result}" STREQUAL "")
-                    # Directory created successfully or already exists
-                    # message(STATUS "Created directory: ${WORK_DIR}")
-                else()
-                    message(FATAL_ERROR 
-                        "[llvm_generate_ir_target]: failed to create directory ${WORK_DIR}: ${result}"
-                    )
+                    file(MAKE_DIRECTORY "${FILE_WORKDIR}")
+                    if(NOT EXISTS "${FILE_WORKDIR}")
+                        message(FATAL_ERROR 
+                            "[llvm_generate_ir_target]: failed to create directory ${FILE_WORKDIR}"
+                        )
+                    endif()
                 endif()
             else()
                 set(FILE_WORKDIR ${TARGET_WORKDIR})
             endif()
 
-            set(OUTPUT_FILENAME "${stem}.ll")
+            # set the output filename with .ll extension
+            set(OUTPUT_FILENAME "${stem}.${LLVM_LL_FILE_SUFFIX}")
             set(OUTPUT_FILEPATH "${FILE_WORKDIR}/${OUTPUT_FILENAME}")
+            # add the generated IR file to the list
             list(APPEND OUTPUT_LLVM_IR_FILE_PATHS ${OUTPUT_FILEPATH})
             list(APPEND GLOBAL_SOURCES ${file})
 
-            # get the compiler for the file
+            # get the language of the file, i.e. C, CXX, Fortran
             llvmir_extract_file_lang(FILE_LANG ${file_ext_lower})
             set(FILE_COMPILER ${LLVM_${FILE_LANG}_COMPILER})
             set(FILE_LANG_FLAGS ${GLOBAL_${FILE_LANG}_FLAGS})
 
+            # set the compile command for the file
             set(FILE_COMPILE_CMD "-emit-llvm" "-S" ${FILE_LANG_FLAGS}
                 ${GLOBAL_COMPILE_OPTIONS} ${GLOBAL_COMPILE_FLAGS}
                 ${GLOBAL_DEFINITION} ${GLOBAL_INCLUDES}
@@ -317,6 +418,9 @@ function(llvm_generate_ir_target)
             )
 
             # add custom command to compile the file
+            # in here, we add the dependencies of the libraries that the target
+            # is dependent on so that the libraries will be built before the
+            # IR generation
             add_custom_command(OUTPUT ${OUTPUT_FILEPATH}
                 COMMAND ${FILE_COMPILER} ${FILE_COMPILE_CMD} ${file} 
                     -o ${OUTPUT_FILEPATH} 
@@ -324,7 +428,7 @@ function(llvm_generate_ir_target)
                 DEPENDS ${file} ${temp_library_target_list}
                 COMMENT "Generating LLVM IR for ${file} with command:"
                     "${FILE_COMPILER} ${FILE_COMPILE_CMD} ${file} -o "
-                    "${OUTPUT_FILEPATH} ${LLVM_GENERATE_ADDITIONAL_COMMANDS}"
+                    "${OUTPUT_FILEPATH} ${ADD_CMDS}"
                 VERBATIM
             )
         endforeach()
@@ -334,6 +438,10 @@ function(llvm_generate_ir_target)
     # add custom target to generate the IR
     add_custom_target(${TRGT} ALL DEPENDS ${OUTPUT_LLVM_IR_FILE_PATHS})
 
+    # set the LLVM_TYPE to LLVM_LL_TYPE
+    # LLVM_LL_TYPE can be generated into LLVM_BC_TYPE and LLVM_OBJ_TYPE but
+    # not LLVM_EXE_TYPE because this means it's possible for the IR files to 
+    # not be linked into a single file that can be compiled into an executable
     set_property(TARGET ${TRGT} PROPERTY LLVM_TYPE ${LLVM_LL_TYPE})
     set_property(TARGET ${TRGT} PROPERTY LLVM_SOURCE_FILES ${GLOBAL_SOURCES})
     set_property(TARGET ${TRGT} 

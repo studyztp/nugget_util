@@ -599,3 +599,48 @@ function(print_target_properties target)
     
     message(STATUS "End of properties for '${target}'")
 endfunction()
+
+function(check_cxx_flag_works flag lang result)
+    # Create a clean temporary directory for testing the flag
+    set(test_dir "${CMAKE_BINARY_DIR}/CMakeFiles/FlagTest")
+    file(MAKE_DIRECTORY "${test_dir}" RESULT_VARIABLE make_dir_result)
+    if(NOT "${make_dir_result}" STREQUAL "")
+        message(FATAL_ERROR "Failed to create test directory: ${make_dir_result}")
+    endif()
+
+    # Create appropriate test source file based on language
+    if(${lang} STREQUAL "CXX")
+        set(src_file "${test_dir}/test.cpp")
+        file(WRITE "${src_file}" "int main() { return 0; }\n")
+    elseif(${lang} STREQUAL "C")
+        set(src_file "${test_dir}/test.c")
+        file(WRITE "${src_file}" "int main() { return 0; }\n")
+    elseif(${lang} STREQUAL "Fortran")
+        set(src_file "${test_dir}/test.f90")
+        file(WRITE "${src_file}" "program test\nend program\n")
+        set(lang "FORTRAN")
+    else()
+        message(FATAL_ERROR "Unsupported language: ${lang}")
+    endif()
+
+    # Execute compiler directly to test the flag
+    execute_process(
+        COMMAND ${LLVM_${lang}_COMPILER} ${flag} -c ${src_file} -o "${test_dir}/test.o"
+        WORKING_DIRECTORY ${test_dir}
+        RESULT_VARIABLE compile_result
+        OUTPUT_VARIABLE compile_output
+        ERROR_VARIABLE compile_output
+    )
+
+    # Check compilation result
+    if(compile_result EQUAL 0)
+        debug("Flag ${flag} works for ${lang}")
+        set(${result} TRUE PARENT_SCOPE)
+    else()
+        debug("Flag ${flag} does not work for ${lang}: ${compile_output}")
+        set(${result} FALSE PARENT_SCOPE)
+    endif()
+
+    # Clean up test directory
+    file(REMOVE_RECURSE ${test_dir})
+endfunction()
