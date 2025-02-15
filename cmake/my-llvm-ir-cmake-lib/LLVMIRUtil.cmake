@@ -812,3 +812,124 @@ function(llvm_compile_into_executable_target)
     set_property(TARGET ${TRGT} PROPERTY LIB_OPTIONS ${LIB_OPTIONS})
 
 endfunction()
+
+function(llvm_llc_into_obj_target)
+    # List of options without values (boolean flags)
+    set(options)
+
+    # Arguments that take exactly one value
+    # TARGET: Name of the output object target to be generated
+    set(oneValueArgs TARGET DEPEND_TARGET)
+
+    # Arguments that can take multiple values
+    # DEPEND_TARGETS: List of CMake targets to generate BC from
+    # ADDITIONAL_COMMANDS: Extra compiler flags to be appended to each compile 
+    # command
+    set(multiValueArgs 
+        LLC_COMMAND
+    )
+
+    # Parse the function arguments
+    cmake_parse_arguments(LLVM_GENERATE 
+        "${options}" 
+        "${oneValueArgs}" 
+        "${multiValueArgs}" 
+        ${ARGN}
+    )
+
+    set(TRGT ${LLVM_GENERATE_TARGET})
+    set(DEP_TRGT ${LLVM_GENERATE_DEPEND_TARGET})
+    set(LLC_CMD ${LLVM_GENERATE_LLC_COMMAND})
+
+    if(NOT TRGT)
+        message(FATAL_ERROR "llvm_llc_into_obj_target: missing TARGET option")
+    endif()
+
+    if(NOT DEP_TRGT)
+        message(FATAL_ERROR 
+            "llvm_llc_into_obj_target: missing DEPEND_TARGET option")
+    endif()
+
+    if(NOT LLC_CMD)
+        message(FATAL_ERROR 
+            "llvm_llc_into_obj_target: missing LLC_COMMAND option")
+    endif()
+
+    # check if the necessary properties are set
+    # for this function, we need the LLVM_TYPE property to be LLVM_BC_TYPE
+    get_property(target_type TARGET ${DEP_TRGT} PROPERTY LLVM_TYPE)
+    # Check if it equals LLVM_BC_TYPE
+    if(NOT "${target_type}" STREQUAL "${LLVM_BC_TYPE}")
+        # Property matches LLVM_BC_TYPE
+        message(FATAL_ERROR "Target ${DEP_TRGT} is not of type LLVM_BC"
+            " - cannot compile object file"
+            " - it is of type ${target_type}")
+    endif()
+
+    # only one target can be generated into an object file so we don't need to
+    # have a list of global properties
+
+    set(WORK_DIR "${CMAKE_CURRENT_BINARY_DIR}/${LLVM_OBJ_OUTPUT_DIR}/${TRGT}")
+    if(NOT EXISTS "${WORK_DIR}")
+        file(MAKE_DIRECTORY "${WORK_DIR}")
+        if(NOT EXISTS "${WORK_DIR}")
+            message(FATAL_ERROR 
+                "[llvm_llc_into_obj_target]: "
+                    "failed to create directory ${WORK_DIR}"
+            )
+        endif()
+    endif()
+
+    set(OUTPUT_FILENAME "${TRGT}.${LLVM_OBJ_FILE_SUFFIX}")
+    set(OUTPUT_LLVM_OBJ_FILE_PATH "${WORK_DIR}/${OUTPUT_FILENAME}")
+
+    get_property(INPUT_FILE TARGET ${DEP_TRGT} PROPERTY LLVM_GENERATED_FILES)
+    get_property(INCLUDE TARGET ${DEP_TRGT} PROPERTY INCLUDES)
+    get_property(DEFINITION TARGET ${DEP_TRGT} PROPERTY DEFINITION)
+    get_property(COMPILE_OPTIONS TARGET ${DEP_TRGT} PROPERTY COMPILE_OPTIONS)
+    get_property(COMPILE_FLAGS TARGET ${DEP_TRGT} PROPERTY COMPILE_FLAGS)
+    get_property(C_FLAGS TARGET ${DEP_TRGT} PROPERTY C_FLAGS)
+    get_property(CXX_FLAGS TARGET ${DEP_TRGT} PROPERTY CXX_FLAGS)
+    get_property(Fortran_FLAGS TARGET ${DEP_TRGT} PROPERTY Fortran_FLAGS)
+    get_property(LIB_LINKING_LIB_PATHS TARGET ${DEP_TRGT} 
+        PROPERTY LIB_LINKING_LIB_PATHS)
+    get_property(LIB_LINKING_LIBS TARGET ${DEP_TRGT}
+    PROPERTY LIB_LINKING_LIBS)
+    get_property(LIB_INCLUDES TARGET ${DEP_TRGT} PROPERTY LIB_INCLUDES)
+    get_property(LIB_OPTIONS TARGET ${DEP_TRGT} PROPERTY LIB_OPTIONS)
+    
+    add_custom_command(OUTPUT ${OUTPUT_LLVM_OBJ_FILE_PATH}
+        COMMAND ${LLVM_LLC} --filetype=obj ${INPUT_FILE} ${LLC_CMD} -o 
+            ${OUTPUT_LLVM_OBJ_FILE_PATH}
+        DEPENDS ${INPUT_FILE}
+        COMMENT "Compiling object file from ${INPUT_FILE} with command:"
+            "${LLVM_LLC} ${LLC_CMD} ${INPUT_FILE} -o "
+            "${OUTPUT_LLVM_OBJ_FILE_PATH}"
+        VERBATIM
+    )
+
+    # add custom target to generate the object file
+    add_custom_target(${TRGT} ALL DEPENDS ${OUTPUT_LLVM_OBJ_FILE_PATH})
+    # set the LLVM_TYPE to LLVM_OBJ_TYPE
+    set_property(TARGET ${TRGT} PROPERTY LLVM_TYPE ${LLVM_OBJ_TYPE})
+    set_property(TARGET ${TRGT} PROPERTY LLVM_SOURCE_FILES ${INPUT_FILE})
+    set_property(TARGET ${TRGT} PROPERTY LLVM_CUSTOM_OUTPUT_DIR ${WORK_DIR})
+    set_property(TARGET ${TRGT} 
+        PROPERTY LLVM_GENERATED_FILES ${OUTPUT_LLVM_OBJ_FILE_PATH})
+
+    # setup the properties to carry forward
+    set_property(TARGET ${TRGT} PROPERTY INCLUDES ${INCLUDE})
+    set_property(TARGET ${TRGT} PROPERTY DEFINITION ${DEFINITION})
+    set_property(TARGET ${TRGT} PROPERTY COMPILE_OPTIONS ${COMPILE_OPTIONS})
+    set_property(TARGET ${TRGT} PROPERTY COMPILE_FLAGS ${COMPILE_FLAGS})
+    set_property(TARGET ${TRGT} PROPERTY C_FLAGS ${C_FLAGS})
+    set_property(TARGET ${TRGT} PROPERTY CXX_FLAGS ${CXX_FLAGS})
+    set_property(TARGET ${TRGT} PROPERTY Fortran_FLAGS ${Fortran_FLAGS})
+    set_property(TARGET ${TRGT} PROPERTY LIB_LINKING_LIB_PATHS 
+        ${LIB_LINKING_LIB_PATHS})
+    set_property(TARGET ${TRGT} PROPERTY LIB_LINKING_LIBS
+        ${LIB_LINKING_LIBS})
+    set_property(TARGET ${TRGT} PROPERTY LIB_INCLUDES ${LIB_INCLUDES})
+    set_property(TARGET ${TRGT} PROPERTY LIB_OPTIONS ${LIB_OPTIONS})
+
+endfunction()
