@@ -1053,3 +1053,315 @@ function(apply_opt_to_bc_target)
     set_property(TARGET ${TRGT} PROPERTY LIB_INCLUDES ${LIB_INCLUDES})
     set_property(TARGET ${TRGT} PROPERTY LIB_OPTIONS ${LIB_OPTIONS})
 endfunction()
+
+function(create_bc_target_without_rebuild)
+    # List of options without values (boolean flags)
+    set(options)
+
+    # Arguments that take exactly one value
+    # TARGET: Name of the output BC target to be generated
+    set(oneValueArgs TARGET BC_FILE_PATH)
+
+    # Arguments that can take multiple values
+    # DEPEND_TARGETS: List of CMake targets to generate BC from
+    # ADDITIONAL_COMMANDS: Extra compiler flags to be appended to each compile 
+    # command
+    set(multiValueArgs 
+        DEPEND_TARGETS
+    )
+
+    # Parse the function arguments
+    cmake_parse_arguments(LLVM_GENERATE 
+        "${options}" 
+        "${oneValueArgs}" 
+        "${multiValueArgs}" 
+        ${ARGN}
+    )
+
+    set(TRGT ${LLVM_GENERATE_TARGET})
+    set(DEP_TRGTS ${LLVM_GENERATE_DEPEND_TARGETS})
+    set(BC_FILE_PATH ${LLVM_GENERATE_BC_FILE_PATH})
+
+    if(NOT TRGT)
+        message(FATAL_ERROR 
+            "create_bc_target_without_rebuild: missing TARGET option")
+    endif()
+
+    if(NOT DEP_TRGTS)
+        message(FATAL_ERROR 
+            "create_bc_target_without_rebuild: missing DEPEND_TARGETS option")
+    endif()
+
+    if(NOT BC_FILE_PATH)
+        message(FATAL_ERROR 
+            "create_bc_target_without_rebuild: missing BC_FILE_PATH option")
+    endif()
+
+    # check if the necessary properties are set
+    # for this function, we need the source files to be set
+    foreach(dep_trgt ${DEP_TRGTS})
+        get_property(sources TARGET ${dep_trgt} PROPERTY SOURCES)
+        if(NOT sources)
+            message(FATAL_ERROR 
+                "create_bc_target_without_rebuild: "
+                "missing SOURCES property for target ${dep_trgt}"
+            )
+        endif()
+    endforeach()
+
+    # setup global lists to store the properties of all targets
+
+    # list of all the library properties
+    # list of all the library paths, i.e. -L<lib-path>
+    set(GLOBAL_LIB_LINKING_LIB_PATHS "")
+    # list of all the libraries, i.e. -l<lib-path>
+    set(GLOBAL_LIB_LINKING_LIBS "")
+    # list of all the library includes, i.e. -I<lib-path>
+    set(GLOBAL_LIB_INCLUDES "")
+    # list of all the library options, i.e. -fopenmp
+    set(GLOBAL_LIB_OPTIONS "")
+
+    # list of all the include directories
+    set(GLOBAL_INCLUDES "")
+    # list of all the compile definitions
+    set(GLOBAL_DEFINITION "")
+
+    # list of all the compile options
+    set(GLOBAL_COMPILE_OPTIONS "")
+    # list of all the compile flags
+    set(GLOBAL_COMPILE_FLAGS "")
+
+    # list of the language flags, i.e. -std=c++11, -O3
+    set(GLOBAL_C_FLAGS "")
+    set(GLOBAL_CXX_FLAGS "")
+    set(GLOBAL_Fortran_FLAGS "")
+
+    # list of all the library targets that the final target will be dependent 
+    # on
+    set(temp_library_target_list "")
+
+    foreach(dep_trgt ${DEP_TRGTS})
+        get_property(LOCAL_FILES TARGET ${dep_trgt} PROPERTY SOURCES)
+        get_property(LOCAL_LINK_FLAGS TARGET ${dep_trgt} PROPERTY LINK_FLAGS)
+        # all the libraries that are linked to this target, i.e. using 
+        # target_link_libraries
+        get_property(LOCAL_LINK_LIBRARIES
+            TARGET ${dep_trgt}
+            PROPERTY LINK_LIBRARIES
+        )
+        
+        # we will remove all the targets in the dependency list from the
+        # link libraries list because we will be generating the IR for them
+        # and we don't want to link them again
+        set(dep_targets_list ${DEP_TRGTS})
+        # Check if library is in dependency list
+        set(NEW_LINK_LIBRARIES "")
+        foreach(lib ${LOCAL_LINK_LIBRARIES})
+            if(NOT "${lib}" IN_LIST dep_targets_list)
+                list(APPEND NEW_LINK_LIBRARIES "${lib}")
+            endif()
+        endforeach()
+        list(APPEND temp_library_target_list ${NEW_LINK_LIBRARIES})
+
+        # extract compile definitions, i.e. -D<def>
+        llvmir_extract_compile_defs_properties(LOCAL_DEFS ${dep_trgt})
+
+        # extract include directories, i.e. -I<dir>
+        llvmir_extract_include_dirs_properties(LOCAL_INCLUDES ${dep_trgt})
+
+        # compiler std flags, i.e. -std=c++11
+        llvmir_extract_standard_flags(LOCAL_CXX_STD_FLAGS ${dep_trgt} CXX)
+        llvmir_extract_standard_flags(LOCAL_C_STD_FLAGS ${dep_trgt} C)
+        llvmir_extract_standard_flags(LOCAL_Fortran_STD_FLAGS ${dep_trgt} Fortran)
+
+        # compile options
+        llvmir_extract_compile_option_properties(
+            LOCAL_COMPILE_OPTIONS ${dep_trgt})
+
+        # compile flags
+        llvmir_extract_compile_flags(LOCAL_COMPILE_FLAGS ${dep_trgt})
+
+        # compile lang flags, i.e. -O3
+        llvmir_extract_lang_flags(LOCAL_C_FLAGS C)
+        llvmir_extract_lang_flags(LOCAL_CXX_FLAGS CXX)
+        llvmir_extract_lang_flags(LOCAL_Fortran_FLAGS Fortran)
+
+        # extract library related properties
+        llvmir_extract_library_linking(
+            LOCAL_LIB_LINKING_LIB_PATHS 
+            LOCAL_LIB_LINKING_LIBS "${NEW_LINK_LIBRARIES}")
+        llvmir_extract_library_compile_option(
+            LOCAL_LIB_OPT "${NEW_LINK_LIBRARIES}")
+        llvmir_extract_library_include(
+            LOCAL_LIB_INCLUDE "${NEW_LINK_LIBRARIES}")
+
+        set(temp_include "")
+        set(excluded_files "")
+
+        # Find all header files and excluded files in the source
+        foreach(IN_FILE ${LOCAL_FILES})
+            # Get file extension
+            get_filename_component(FILE_EXT "${IN_FILE}" EXT)
+            # Get directory path
+            get_filename_component(FILE_DIR "${IN_FILE}" DIRECTORY)
+            
+            # Convert extension to lowercase
+            string(TOLOWER "${FILE_EXT}" FILE_EXT_LOWER)
+            
+            # Check if it's a header file
+            list(FIND header_exts "${FILE_EXT_LOWER}" header_index)
+            if(header_index GREATER -1)
+                # remove the header file from the source files
+                list(REMOVE_ITEM LOCAL_FILES "${IN_FILE}")
+                list(APPEND temp_include "-I${FILE_DIR}")
+            endif()
+
+            # Check if it's an excluded file
+            list(FIND exclude_exts "${FILE_EXT_LOWER}" exclude_index)
+            if(exclude_index GREATER -1)
+                list(APPEND excluded_files "${IN_FILE}")
+            endif()
+        endforeach()
+
+        if(temp_include)
+            list(REMOVE_DUPLICATES temp_include)
+            list(APPEND LOCAL_INCLUDES ${temp_include})
+            list(REMOVE_DUPLICATES LOCAL_INCLUDES)
+        endif()
+
+        if(excluded_files AND LOCAL_FILES)
+            list(REMOVE_DUPLICATES excluded_files)
+            list(REMOVE_ITEM LOCAL_FILES ${excluded_files})
+        endif()
+
+        list(APPEND GLOBAL_INCLUDES ${LOCAL_INCLUDES})
+        list(APPEND GLOBAL_DEFINITION ${LOCAL_DEFS})
+        list(APPEND GLOBAL_COMPILE_OPTIONS ${LOCAL_COMPILE_OPTIONS})
+        list(APPEND GLOBAL_COMPILE_FLAGS ${LOCAL_COMPILE_FLAGS})
+        
+        # combine the language flags
+        catuniq(LOCAL_C_FLAGS ${LOCAL_C_STD_FLAGS} ${LOCAL_C_FLAGS})
+        catuniq(LOCAL_CXX_FLAGS ${LOCAL_CXX_STD_FLAGS} ${LOCAL_CXX_FLAGS})
+        catuniq(LOCAL_Fortran_FLAGS ${LOCAL_Fortran_STD_FLAGS} ${LOCAL_Fortran_FLAGS})
+        
+        # add the linekr flags to library linkings
+        catuniq(LOCAL_LIB_OPT ${LOCAL_LIB_OPT} ${LOCAL_LINK_FLAGS})
+
+        list(APPEND GLOBAL_C_FLAGS ${LOCAL_C_FLAGS})
+        list(APPEND GLOBAL_CXX_FLAGS ${LOCAL_CXX_FLAGS})
+        list(APPEND GLOBAL_Fortran_FLAGS ${LOCAL_Fortran_FLAGS})
+
+        list(APPEND GLOBAL_LIB_LINKING_LIB_PATHS ${LOCAL_LIB_LINKING_LIB_PATHS})
+        list(APPEND GLOBAL_LIB_LINKING_LIBS ${LOCAL_LIB_LINKING_LIBS})
+        list(APPEND GLOBAL_LIB_INCLUDES ${LOCAL_LIB_INCLUDE})
+        list(APPEND GLOBAL_LIB_OPTIONS ${LOCAL_LIB_OPT})        
+    endforeach()
+
+    list(REMOVE_DUPLICATES GLOBAL_INCLUDES)
+    list(REMOVE_DUPLICATES GLOBAL_DEFINITION)
+    list(REMOVE_DUPLICATES GLOBAL_COMPILE_OPTIONS)
+    list(REMOVE_DUPLICATES GLOBAL_COMPILE_FLAGS)
+    list(REMOVE_DUPLICATES GLOBAL_C_FLAGS)
+    list(REMOVE_DUPLICATES GLOBAL_CXX_FLAGS)
+    list(REMOVE_DUPLICATES GLOBAL_Fortran_FLAGS)
+    list(REMOVE_DUPLICATES GLOBAL_LIB_LINKING_LIB_PATHS)
+    list(REMOVE_DUPLICATES GLOBAL_LIB_LINKING_LIBS)
+    list(REMOVE_DUPLICATES GLOBAL_LIB_INCLUDES)
+    list(REMOVE_DUPLICATES GLOBAL_LIB_OPTIONS)
+    list(REMOVE_DUPLICATES temp_library_target_list)
+
+    set(new_temp_library_target_list "")
+
+    # check if the library targets are valid, if not, remove them from the list
+    # of dependencies
+    foreach(lib ${temp_library_target_list})
+        if(TARGET ${lib})
+            list(APPEND new_temp_library_target_list ${lib})
+        endif()
+    endforeach()
+
+    set(temp_library_target_list ${new_temp_library_target_list})
+
+    # from here we will check if the flags are supported by the LLVM compilers,
+    # if not, we will remove them from the list
+    set(temp_list "")
+
+    foreach(flag ${GLOBAL_C_FLAGS})
+        check_lang_flag_works_with_llvm_compiler(${flag} C result)
+        if(${result})
+            list(APPEND temp_list ${flag})
+        else()
+            message(WARNING "Flag ${flag} is not supported by the LLVM Clang")
+        endif()
+    endforeach()
+
+    set(GLOBAL_C_FLAGS ${temp_list})
+
+    set(temp_list "")
+
+    foreach(flag ${GLOBAL_CXX_FLAGS})
+        check_lang_flag_works_with_llvm_compiler(${flag} CXX result)
+        if(${result})
+            list(APPEND temp_list ${flag})
+        else()
+            message(WARNING "Flag ${flag} is not supported by the LLVM Clang++")
+        endif()
+    endforeach()
+
+    set(GLOBAL_CXX_FLAGS ${temp_list})
+
+    set(temp_list "")
+
+    foreach(flag ${GLOBAL_Fortran_FLAGS})
+        check_lang_flag_works_with_llvm_compiler(${flag} Fortran result)
+        if(${result})
+            list(APPEND temp_list ${flag})
+        else()
+            message(WARNING "Flag ${flag} is not supported by the LLVM Flang")
+        endif()
+    endforeach()
+
+    set(GLOBAL_Fortran_FLAGS ${temp_list})
+    # end of checking the flags
+
+    message(STATUS "GLOBAL_INCLUDES: ${GLOBAL_INCLUDES}")
+    message(STATUS "GLOBAL_DEFINITION: ${GLOBAL_DEFINITION}")
+    message(STATUS "GLOBAL_COMPILE_OPTIONS: ${GLOBAL_COMPILE_OPTIONS}")
+    message(STATUS "GLOBAL_COMPILE_FLAGS: ${GLOBAL_COMPILE_FLAGS}")
+    message(STATUS "GLOBAL_C_FLAGS: ${GLOBAL_C_FLAGS}")
+    message(STATUS "GLOBAL_CXX_FLAGS: ${GLOBAL_CXX_FLAGS}")
+    message(STATUS "GLOBAL_Fortran_FLAGS: ${GLOBAL_Fortran_FLAGS}")
+    message(STATUS "GLOBAL_LIB_LINKING_LIB_PATHS: "
+                                "${GLOBAL_LIB_LINKING_LIB_PATHS}")
+    message(STATUS "GLOBAL_LIB_LINKING_LIBS: ${GLOBAL_LIB_LINKING_LIBS}")
+    message(STATUS "GLOBAL_LIB_INCLUDES: ${GLOBAL_LIB_INCLUDES}")
+    message(STATUS "GLOBAL_LIB_OPTIONS: ${GLOBAL_LIB_OPTIONS}")
+    message(STATUS "temp_library_target_list: ${temp_library_target_list}")
+
+    # add custom target for the bc file and make sure it doesn't rebuild
+    # however, we will need to check if the library targets are still valid
+    add_custom_target(${TRGT} ALL DEPENDS ${temp_library_target_list})
+
+    # set the LLVM_TYPE to LLVM_LL_TYPE
+    # LLVM_LL_TYPE can be generated into LLVM_BC_TYPE and LLVM_OBJ_TYPE but
+    # not LLVM_EXE_TYPE because this means it's possible for the IR files to 
+    # not be linked into a single file that can be compiled into an executable
+    set_property(TARGET ${TRGT} PROPERTY LLVM_TYPE ${LLVM_BC_TYPE})
+    set_property(TARGET ${TRGT} 
+        PROPERTY LLVM_GENERATED_FILES ${BC_FILE_PATH})
+
+    # setup the properties to carry forward
+    set_property(TARGET ${TRGT} PROPERTY INCLUDES ${GLOBAL_INCLUDES})
+    set_property(TARGET ${TRGT} PROPERTY DEFINITION ${GLOBAL_DEFINITION})
+    set_property(TARGET ${TRGT} PROPERTY COMPILE_OPTIONS ${GLOBAL_COMPILE_OPTIONS})
+    set_property(TARGET ${TRGT} PROPERTY COMPILE_FLAGS ${GLOBAL_COMPILE_FLAGS})
+    set_property(TARGET ${TRGT} PROPERTY C_FLAGS ${GLOBAL_C_FLAGS})
+    set_property(TARGET ${TRGT} PROPERTY CXX_FLAGS ${GLOBAL_CXX_FLAGS})
+    set_property(TARGET ${TRGT} PROPERTY Fortran_FLAGS ${GLOBAL_Fortran_FLAGS})
+    set_property(TARGET ${TRGT} PROPERTY LIB_LINKING_LIB_PATHS 
+        ${GLOBAL_LIB_LINKING_LIB_PATHS})
+    set_property(TARGET ${TRGT} PROPERTY LIB_LINKING_LIBS
+        ${GLOBAL_LIB_LINKING_LIBS})
+    set_property(TARGET ${TRGT} PROPERTY LIB_INCLUDES ${GLOBAL_LIB_INCLUDES})
+    set_property(TARGET ${TRGT} PROPERTY LIB_OPTIONS ${GLOBAL_LIB_OPTIONS})
+endfunction()
