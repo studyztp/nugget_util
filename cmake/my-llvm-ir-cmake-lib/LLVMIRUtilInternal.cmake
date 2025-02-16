@@ -16,6 +16,7 @@ macro(catuniq lst)
 endmacro()
 
 macro(llvmir_setup)
+    set(LLVM_SETUP_DONE TRUE)
     # if the output directories are not defined, set the default values
     if (NOT DEFINED LLVM_IR_OUTPUT_DIR)
         set(LLVM_IR_OUTPUT_DIR "llvm-ir")
