@@ -11,6 +11,10 @@ uint64_t num_threads = 0;
 
 struct timespec start, end;
 
+BOOL if_warmup_not_met = FALSE;
+BOOL if_start_not_met = FALSE;
+BOOL if_end_not_met = FALSE;
+
 __attribute__((no_profile_instrument_function))
 unsigned long long calculate_nsec_difference(struct timespec start, struct timespec end) {
 /*
@@ -47,6 +51,7 @@ void end_event() {
     fprintf(fptr, "Time taken: %lld ns\n", time_diff);
 
     fclose(fptr);
+    exit(0);
 }
 
 void roi_begin_() {

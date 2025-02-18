@@ -11,6 +11,10 @@ atomic_ullong end_counter;
 
 uint64_t num_threads = 0;
 
+BOOL if_warmup_not_met = FALSE;
+BOOL if_start_not_met = FALSE;
+BOOL if_end_not_met = FALSE;
+
 void warmup_event() {
     m5_hypercall_addr(2);
 }

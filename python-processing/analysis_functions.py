@@ -187,6 +187,9 @@ def relative_bbv(bbv_list1: List[int], bbv_list2: List[int]) -> List[int]:
         raise ValueError("BBV lists must have same length")
     return [x - y for x, y in zip(bbv_list1, bbv_list2)]
 
+def reverse_map(map):
+    return {v: k for k, v in map.items()}
+
 def form_all_markers(
         df: pd.DataFrame,
         bb_id_map: Dict[str, int], 
@@ -214,6 +217,8 @@ def form_all_markers(
         global_bbv = zero_bbv.copy()
         threshold = region_length * grace_perc
         previous_global_bbvs = []
+
+        reversed_bb_id_map = reverse_map(bb_id_map)
 
         marker_df = pd.DataFrame(columns=[
             'region', 'warmup_rid', 'start_rid', 'warmup_bid', 'warmup_count',
@@ -292,11 +297,11 @@ def form_all_markers(
                     'region': [i],
                     'warmup_rid': [warmup_rid],
                     'start_rid': [start_rid],
-                    'warmup_bid': [warmup_bid],
+                    'warmup_bid': [reversed_bb_id_map[warmup_bid]],
                     'warmup_count': [warmup_count],
-                    'start_bid': [start_bid],
+                    'start_bid': [reversed_bb_id_map[start_bid]],
                     'start_count': [start_count],
-                    'end_bid': [end_bid],
+                    'end_bid': [reversed_bb_id_map[end_bid]],
                     'end_count': [end_count]
                 })
                 marker_df = pd.concat([marker_df, new_marker], ignore_index=True)

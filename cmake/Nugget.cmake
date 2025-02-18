@@ -70,9 +70,9 @@ function(nugget_bbv_profiling_bc)
     )
 
     apply_opt_to_bc_target(
-        TARGET ${TRGT}_opt_bc
+        TARGET ${TRGT}
         DEPEND_TARGET ${TRGT}_bc
-        OPT_CMD ${OPT_CMD}
+        OPT_COMMAND ${OPT_CMD}
     )
 endfunction()
 
@@ -165,9 +165,9 @@ function(nugget_nugget_bc)
     endif()
 
     apply_opt_to_bc_target(
-        TARGET ${TRGT}_opt_bc
+        TARGET ${TRGT}
         DEPEND_TARGET ${TRGT}_bc
-        OPT_CMD ${OPT_CMD}
+        OPT_COMMAND ${OPT_CMD}
     )
 
 endfunction()
@@ -188,14 +188,14 @@ function(nugget_compile_exe)
         "${options}" "${oneValueArgs}" "${multiValueArgs}" 
         ${ARGN}
     )
-    set(TRGT ${NUGGET_BBV_PROFILING_EXE_TARGET})
-    set(DEP_TRGTS ${NUGGET_BBV_PROFILING_EXE_DEPEND_TARGETS})
-    set(EXTRA_FLAGS ${NUGGET_BBV_PROFILING_EXE_EXTRA_FLAGS})
-    set(EXTRA_INCLUDES ${NUGGET_BBV_PROFILING_EXE_EXTRA_INCLUDES})
-    set(EXTRA_LIB_PATHS ${NUGGET_BBV_PROFILING_EXE_EXTRA_LIB_PATHS})
-    set(EXTRA_LIBS ${NUGGET_BBV_PROFILING_EXE_EXTRA_LIBS})
-    set(BB_FILE_PATH ${NUGGET_BBV_PROFILING_EXE_BB_FILE_PATH})
-    set(LLC_CMD ${NUGGET_BBV_PROFILING_EXE_LLC_CMD})
+    set(TRGT ${NUGGET_COMPILE_EXE_TARGET})
+    set(DEP_TRGTS ${NUGGET_COMPILE_EXE_DEPEND_TARGETS})
+    set(EXTRA_FLAGS ${NUGGET_COMPILE_EXE_EXTRA_FLAGS})
+    set(EXTRA_INCLUDES ${NUGGET_COMPILE_EXE_EXTRA_INCLUDES})
+    set(EXTRA_LIB_PATHS ${NUGGET_COMPILE_EXE_EXTRA_LIB_PATHS})
+    set(EXTRA_LIBS ${NUGGET_COMPILE_EXE_EXTRA_LIBS})
+    set(BB_FILE_PATH ${NUGGET_COMPILE_EXE_BB_FILE_PATH})
+    set(LLC_CMD ${NUGGET_COMPILE_EXE_LLC_CMD})
 
     if (NOT TRGT)
         message(FATAL_ERROR "TARGET not set")
@@ -230,18 +230,20 @@ function(nugget_compile_exe)
     if(LLC_CMD)
         llvm_llc_into_obj_target(
             TARGET ${TRGT}_obj
-            DEPEND_TARGETS ${TRGT}_bc
+            DEPEND_TARGET ${TRGT}_bc
             LLC_COMMAND ${LLC_CMD}
         )
     else()
         set(${TRGT}_obj ${TRGT}_bc)
     endif()
 
-    llvm_link_obj_target(
-        TARGET ${TRGT}_exe
-        DEPEND_TARGETS ${TRGT}_obj
+    llvm_compile_into_executable_target(
+        TARGET ${TRGT}
+        DEPEND_TARGET ${TRGT}_obj
         EXTRA_FLAGS ${EXTRA_FLAGS}
         EXTRA_LIB_PATHS ${EXTRA_LIB_PATHS}
         EXTRA_LIBS ${EXTRA_LIBS}
     )
+
+
 endfunction()

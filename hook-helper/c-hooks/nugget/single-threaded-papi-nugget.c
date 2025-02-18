@@ -7,6 +7,10 @@ uint64_t warmup_threshold;
 uint64_t start_threshold;
 uint64_t end_threshold;
 
+BOOL if_warmup_not_met = FALSE;
+BOOL if_start_not_met = FALSE;
+BOOL if_end_not_met = FALSE;
+
 void warmup_event() {
     printf("Warmup event\n");
 }
@@ -25,6 +29,7 @@ void end_event() {
         printf("PAPI_hl_region_end failed due to %d.\n", retval);
     }
     printf("End event\n");
+    exit(0);
 }
 
 void roi_begin_() {
