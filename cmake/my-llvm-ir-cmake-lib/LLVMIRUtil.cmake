@@ -782,9 +782,7 @@ function(llvm_compile_into_executable_target)
         COMMAND ${LLVM_FINAL_COMPILER} ${INPUT_FILE} ${FILE_COMPILE_CMD}
             -o ${OUTPUT_LLVM_EXE_FILE_PATH} ${ADD_CMDS}
         DEPENDS ${INPUT_FILE}
-        COMMENT "Compiling executable from ${INPUT_FILE} with command:"
-            "${LLVM_FINAL_COMPILER} ${FILE_COMPILE_CMD} ${INPUT_FILE} -o "
-            "${OUTPUT_LLVM_EXE_FILE_PATH} ${ADD_CMDS}"
+        COMMENT "Compiling executable from ${INPUT_FILE} with command: ${LLVM_FINAL_COMPILER} ${FILE_COMPILE_CMD} ${INPUT_FILE} -o ${OUTPUT_LLVM_EXE_FILE_PATH} ${ADD_CMDS}"
             VERBATIM)
     
     # add custom target to generate the executable
@@ -901,9 +899,7 @@ function(llvm_llc_into_obj_target)
         COMMAND ${LLVM_LLC} --filetype=obj ${INPUT_FILE} ${LLC_CMD} -o 
             ${OUTPUT_LLVM_OBJ_FILE_PATH}
         DEPENDS ${INPUT_FILE}
-        COMMENT "Compiling object file from ${INPUT_FILE} with command:"
-            "${LLVM_LLC} ${LLC_CMD} ${INPUT_FILE} -o "
-            "${OUTPUT_LLVM_OBJ_FILE_PATH}"
+        COMMENT "Compiling object file from ${INPUT_FILE} with command: ${LLVM_LLC} ${LLC_CMD} ${INPUT_FILE} -o ${OUTPUT_LLVM_OBJ_FILE_PATH}"
         VERBATIM
     )
 

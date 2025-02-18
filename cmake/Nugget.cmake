@@ -216,6 +216,7 @@ function(nugget_compile_exe)
             BC_FILE_PATH ${BB_FILE_PATH}
             DEPEND_TARGETS ${DEP_TRGTS}
         )
+        set(BC_TARGET ${TRGT}_bc)
     else()
         set(count 0)
         foreach(DEP_TRGT ${DEP_TRGTS})
@@ -224,22 +225,23 @@ function(nugget_compile_exe)
         if(count GREATER 1)
             message(FATAL_ERROR "BB_FILE_PATH not set and DEPEND_TARGETS has more than one target")
         endif()
-        set(${TRGT}_bc ${DEP_TRGTS})
+        set(BC_TARGET ${DEP_TRGTS})
     endif()
 
     if(LLC_CMD)
         llvm_llc_into_obj_target(
             TARGET ${TRGT}_obj
-            DEPEND_TARGET ${TRGT}_bc
+            DEPEND_TARGET ${BC_TARGET}
             LLC_COMMAND ${LLC_CMD}
         )
+        set(OBJ_TARGET ${TRGT}_obj)
     else()
-        set(${TRGT}_obj ${TRGT}_bc)
+        set(OBJ_TARGET ${BC_TARGET})
     endif()
 
     llvm_compile_into_executable_target(
         TARGET ${TRGT}
-        DEPEND_TARGET ${TRGT}_obj
+        DEPEND_TARGET ${OBJ_TARGET}
         EXTRA_FLAGS ${EXTRA_FLAGS}
         EXTRA_LIB_PATHS ${EXTRA_LIB_PATHS}
         EXTRA_LIBS ${EXTRA_LIBS}
