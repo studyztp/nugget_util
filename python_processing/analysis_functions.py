@@ -203,7 +203,7 @@ def form_all_markers(
         num_warmup_region: int, 
         grace_perc: float, 
         region_length: int
-    ) -> List[Tuple[int, int, int, int, int, int, int]]:
+    ) -> pd.DataFrame:
 
     """Form all markers for regions based on BBV analysis.
     
