@@ -1,3 +1,4 @@
 testing-feature
 testing-feature/*
 testing-feature/**/*
+**__pycache__**
