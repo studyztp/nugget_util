@@ -647,8 +647,7 @@ function(llvm_link_ir_into_bc_target)
         COMMAND ${LLVM_LINK} ${GLOBAL_SOURCES} -o 
             ${OUTPUT_LLVM_BC_FILE_PATH} ${ADD_CMDS}
         DEPENDS ${GLOBAL_SOURCES}
-        COMMENT "Linking LLVM IR files into BC file "
-             "${OUTPUT_LLVM_BC_FILE_PATH}"
+        COMMENT "Linking LLVM IR files into BC file ${OUTPUT_LLVM_BC_FILE_PATH}"
         VERBATIM
     )
 
@@ -1023,9 +1022,7 @@ function(apply_opt_to_bc_target)
         COMMAND ${LLVM_OPT} ${INPUT_FILE} ${OPT_CMD} -o 
             ${OUTPUT_LLVM_BC_FILE_PATH}
         DEPENDS ${INPUT_FILE}
-        COMMENT "Optimizing BC file from ${INPUT_FILE} with command:"
-            "${LLVM_OPT} ${OPT_CMD} ${INPUT_FILE} -o "
-            "${OUTPUT_LLVM_BC_FILE_PATH}"
+        COMMENT "Optimizing BC file from ${INPUT_FILE} with command: ${LLVM_OPT} ${OPT_CMD} ${INPUT_FILE} -o ${OUTPUT_LLVM_BC_FILE_PATH}"
         VERBATIM
     )
 
