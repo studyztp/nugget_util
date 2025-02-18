@@ -2,11 +2,18 @@ import random
 import re
 import numpy as np
 import pandas as pd
-from pathlib import Path
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Final
 
-random_seed = 627
-random.seed(random_seed)
+# for k-means clustering
+from sklearn.cluster import KMeans
+from scipy.spatial import distance
+from sklearn.metrics import pairwise_distances
+
+# Random seed for reproducibility - DO NOT CHANGE
+RANDOM_SEED: Final[int] = 627
+
+random.seed(RANDOM_SEED)
+np.random.seed(RANDOM_SEED)
 
 def print_library_version(lib):
     # Print the version of a library
@@ -419,4 +426,133 @@ def randomly_select_regions(num_regions: int, num_select: int) -> List[int]:
     if num_select > num_regions:
         raise ValueError("Number of regions to select exceeds total regions")
     return random.sample(range(num_regions), num_select)
+
+def compute_bic(kmeans: KMeans, X: np.ndarray) -> float:
+    """Compute the Bayesian Information Criterion (BIC) for K-means clustering.
+    
+    Args:
+        kmeans: Fitted KMeans model
+        X: Input data matrix
+        
+    Returns:
+        BIC score (lower is better)
+    """
+    n_points = X.shape[0]
+    n_dimensions = X.shape[1]
+    n_clusters = kmeans.n_clusters
+    
+    # Number of free parameters
+    n_parameters = (n_clusters - 1) + (n_dimensions * n_clusters) + 1
+    
+    # Compute log likelihood
+    labels = kmeans.labels_
+    distances = np.min(kmeans.transform(X), axis=1)
+    log_likelihood = np.sum(-0.5 * distances)
+    
+    # Compute BIC
+    bic = -2 * log_likelihood + n_parameters * np.log(n_points)
+    return bic
+
+def find_optimal_kmeans(data: np.ndarray, max_k: int = 10) -> int:
+    """Find optimal k-means clusters using BIC.
+    
+    Args:
+        data: Normalized data matrix
+        max_k: Maximum number of clusters to try
+        
+    Returns:
+        Optimal number of clusters
+    """
+    bic_scores = []
+    k_values = range(1, max_k + 1)
+    all_kmeans_results = []
+    
+    for k in k_values:
+        kmeans = KMeans(n_clusters=k, random_state=RANDOM_SEED)
+        kmeans.fit(data)
+        bic = compute_bic(kmeans, data)
+        bic_scores.append(bic)
+        all_kmeans_results.append(kmeans)
+    
+    # Find elbow point or minimum BIC
+    optimal_k = k_values[np.argmin(bic_scores)]
+    optimal_kmeans = all_kmeans_results[optimal_k - 1]
+
+    return optimal_k, optimal_kmeans
+
+def find_rep_rid(data, labels, centers):
+    rep_rid = {}
+    for i, center in enumerate(centers):
+        min = float('inf')
+        min_rid = -1
+        count = 0
+        for j, label in enumerate(labels):
+            if label == i:
+                count += 1
+                dist = distance.euclidean(center, data[j])
+                if dist < min:
+                    min = dist
+                    min_rid = j
+        if min_rid != -1:
+            rep_rid[i] = min_rid
+        else:
+            print("Error: No representative RID found for cluster")
+            print(f"There are {count} RIDs in cluster {i}")
+
+    return rep_rid
+
+def find_cluster_rid(labels):
+    clusters = {}
+    for i, label in enumerate(labels):
+        if str(label) not in clusters.keys():
+            clusters[str(label)] = []
+        clusters[str(label)].append(i)
+    return clusters
+
+def find_cluster_weights(clusters_info):
+    cluster_weights = {}
+    for cluster, rid_list in clusters_info.items():
+        total_weight = len(rid_list)
+        cluster_weights[cluster] = total_weight
+    return cluster_weights
+
+def k_means_select_regions(
+    num_clusters: int,
+    bbv_list: List[List[int]],
+    bb_id_map: Dict[str, int],
+    static_info: Dict[int, Dict] = None
+) -> Dict[str, List[int]]:
+    k = num_clusters
+    normalized_data = []
+    reversed_bb_id_map = reverse_map(bb_id_map)
+
+    # normalize the bbv data
+    for row in bbv_list:
+        weighted_with_inst = [row[i] * int(static_info[reversed_bb_id_map[i]["basic_block_ir_inst_count"]]) for i in range(len(row))]
+        row_sum = sum(weighted_with_inst)
+        normalized_row = [val / row_sum for val in weighted_with_inst]
+        normalized_data.append(normalized_row)
+    
+    data = np.array(normalized_data)
+
+    k, optimal_kmeans = find_optimal_kmeans(data, max_k=k)
+
+    centers = optimal_kmeans.cluster_centers_
+    labels = optimal_kmeans.labels_
+    inertia = optimal_kmeans.inertia_
+    n_iter = optimal_kmeans.n_iter_
+
+    rep_rid = find_rep_rid(data, labels.tolist(), centers.tolist())
+    clusters = find_cluster_rid(labels.tolist())
+    clusters_weights = find_cluster_weights(clusters)
+
+    return {
+        "num_clusters": k,
+        "inertia": inertia,
+        "n_iter": n_iter,
+        "rep_rid": rep_rid,
+        "clusters": clusters,
+        "clusters_weights": clusters_weights
+    }
+
 
