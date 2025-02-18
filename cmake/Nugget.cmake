@@ -247,5 +247,4 @@ function(nugget_compile_exe)
         EXTRA_LIBS ${EXTRA_LIBS}
     )
 
-
 endfunction()
