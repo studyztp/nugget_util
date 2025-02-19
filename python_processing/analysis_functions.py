@@ -5,7 +5,9 @@ import pandas as pd
 from typing import List, Dict, Tuple, Final
 
 # for k-means clustering
+from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
 from scipy.spatial import distance
 from sklearn.metrics import pairwise_distances
 
@@ -51,6 +53,7 @@ def form_dataframe_from_csv(file_path: str) -> pd.DataFrame:
     """
     try:
         data = extract_csv_data(file_path)
+        data = data[1:-1]  # drop the header column and the last row
         df = pd.DataFrame(data)
         max_columns = df.shape[1]
         column_names = ['type', 'region', 'thread'] + [f'data{i}' for i in range(1, max_columns - 2)]
@@ -463,20 +466,20 @@ def find_optimal_kmeans(data: np.ndarray, max_k: int = 10) -> int:
     Returns:
         Optimal number of clusters
     """
-    bic_scores = []
-    k_values = range(1, max_k + 1)
+    silhouette_scores = []
+    k_values = range(2, max_k + 1)
     all_kmeans_results = []
     
     for k in k_values:
         kmeans = KMeans(n_clusters=k, random_state=RANDOM_SEED)
         kmeans.fit(data)
-        bic = compute_bic(kmeans, data)
-        bic_scores.append(bic)
+        labels = kmeans.labels_
+        silhouette_scores.append(silhouette_score(data, labels))
         all_kmeans_results.append(kmeans)
     
     # Find elbow point or minimum BIC
-    optimal_k = k_values[np.argmin(bic_scores)]
-    optimal_kmeans = all_kmeans_results[optimal_k - 1]
+    optimal_k = k_values[np.argmax(silhouette_scores)]
+    optimal_kmeans = all_kmeans_results[np.argmax(silhouette_scores)]
 
     return optimal_k, optimal_kmeans
 
@@ -516,11 +519,26 @@ def find_cluster_weights(clusters_info):
         cluster_weights[cluster] = total_weight
     return cluster_weights
 
+def reduce_data_dim_with_pca(data, n_components):
+    """Reduce dimensionality of data using PCA.
+    
+    Args:
+        data: Input data matrix
+        n_components: Number of PCA components to keep
+        
+    Returns:
+        Transformed data with reduced dimensions
+    """
+    pca = PCA(n_components=n_components, random_state=RANDOM_SEED)
+    pca.fit(data)  # First fit the model
+    return pca.transform(data)  # Then transform the data
+
 def k_means_select_regions(
     num_clusters: int,
     bbv_list: List[List[int]],
     bb_id_map: Dict[str, int],
-    static_info: Dict[int, Dict] = None
+    static_info: Dict[int, Dict] = None,
+    n_reduce_components: int = 100
 ) -> Dict[str, List[int]]:
     k = num_clusters
     normalized_data = []
@@ -528,12 +546,19 @@ def k_means_select_regions(
 
     # normalize the bbv data
     for row in bbv_list:
-        weighted_with_inst = [row[i] * int(static_info[reversed_bb_id_map[i]["basic_block_ir_inst_count"]]) for i in range(len(row))]
+        weighted_with_inst = [row[i] * int(static_info[int(reversed_bb_id_map[i])]["basic_block_ir_inst_count"]) for i in range(len(row))]
         row_sum = sum(weighted_with_inst)
+        if (row_sum == 0):
+            print("Error: Row sum is 0")
+            print(row)
+            print(weighted_with_inst)
+            raise ValueError("Row sum is 0")
         normalized_row = [val / row_sum for val in weighted_with_inst]
         normalized_data.append(normalized_row)
     
     data = np.array(normalized_data)
+
+    data = reduce_data_dim_with_pca(data, n_components=n_reduce_components)
 
     k, optimal_kmeans = find_optimal_kmeans(data, max_k=k)
 
@@ -552,7 +577,8 @@ def k_means_select_regions(
         "n_iter": n_iter,
         "rep_rid": rep_rid,
         "clusters": clusters,
-        "clusters_weights": clusters_weights
+        "clusters_weights": clusters_weights,
+        "bbv": data.tolist()
     }
 
 

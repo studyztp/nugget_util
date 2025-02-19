@@ -743,7 +743,7 @@ function(llvm_compile_into_executable_target)
     # only one target can be generated into an executable so we don't need to
     # have a list of global properties
 
-    set(WORK_DIR "${CMAKE_CURRENT_BINARY_DIR}/${LLVM_EXE_OUTPUT_DIR}/${TRGT}")
+    set(WORK_DIR "${CMAKE_CURRENT_BINARY_DIR}/${LLVM_EXECUTABLE_OUTPUT_DIR}/${TRGT}")
     if(NOT EXISTS "${WORK_DIR}")
         file(MAKE_DIRECTORY "${WORK_DIR}")
         if(NOT EXISTS "${WORK_DIR}")
