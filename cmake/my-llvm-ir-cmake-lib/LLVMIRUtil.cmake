@@ -1513,13 +1513,34 @@ function(create_bc_target_without_rebuild)
     message(STATUS "GLOBAL_LIB_OPTIONS: ${GLOBAL_LIB_OPTIONS}")
     message(STATUS "temp_library_target_list: ${temp_library_target_list}")
 
+    # Debug dependencies before creating target
+    foreach(dep ${temp_library_target_list})
+        debug_dependencies(${dep})
+    endforeach()
+    
     # add custom target for the bc file and make sure it doesn't rebuild
     # however, we will need to check if the library targets are still valid
-    add_custom_target(${TRGT} ALL
-        COMMAND ${CMAKE_COMMAND} -E echo "Building target ${TRGT}"
-        DEPENDS ${temp_library_target_list} ${BC_FILE_PATH}
-        COMMENT "Ensuring dependencies are built for ${TRGT}"
-    )
+    # Create target with explicit dependency ordering
+    add_custom_target(${TRGT} ALL)
+    
+    # Add build-order dependencies
+    foreach(dep ${temp_library_target_list})
+        if(TARGET ${dep})
+            add_dependencies(${TRGT} ${dep})
+        endif()
+    endforeach()
+    
+    # Add file dependencies
+    if(BC_FILE_PATH)
+        add_custom_command(
+            TARGET ${TRGT}
+            PRE_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}
+            COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target ${temp_library_target_list}
+            DEPENDS ${BC_FILE_PATH} ${temp_library_target_list}
+            COMMENT "Building dependencies for ${TRGT}"
+        )
+    endif()
 
     # set the LLVM_TYPE to LLVM_LL_TYPE
     # LLVM_LL_TYPE can be generated into LLVM_BC_TYPE and LLVM_OBJ_TYPE but
@@ -1543,5 +1564,4 @@ function(create_bc_target_without_rebuild)
         ${GLOBAL_LIB_LINKING_LIBS})
     set_property(TARGET ${TRGT} PROPERTY LIB_INCLUDES ${GLOBAL_LIB_INCLUDES})
     set_property(TARGET ${TRGT} PROPERTY LIB_OPTIONS ${GLOBAL_LIB_OPTIONS})
-    set_property(TARGET ${TRGT} PROPERTY LIB_TARGET_DEPENDS ${temp_library_target_list})
 endfunction()

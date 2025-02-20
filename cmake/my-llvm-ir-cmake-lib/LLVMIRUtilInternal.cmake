@@ -145,9 +145,6 @@ macro(llvmir_setup)
     define_property(TARGET PROPERTY LIB_OPTIONS
         BRIEF_DOCS "library compile options"
         FULL_DOCS "library compile options for the target")
-    define_property(TARGET PROPERTY LIB_TARGET_DEPENDS
-        BRIEF_DOCS "library target dependencies"
-        FULL_DOCS "library target dependencies for the target")
     
 endmacro()
 
@@ -575,3 +572,21 @@ function(check_lang_flag_works_with_llvm_compiler flag lang result)
     file(REMOVE_RECURSE ${test_dir})
 endfunction()
 
+function(debug_dependencies target)
+    if(NOT TARGET ${target})
+        message(STATUS "Not a target: ${target}")
+        return()
+    endif()
+    
+    # Get direct dependencies
+    get_target_property(deps ${target} LINK_LIBRARIES)
+    message(STATUS "Direct dependencies for ${target}: ${deps}")
+    
+    # Get interface dependencies
+    get_target_property(interface_deps ${target} INTERFACE_LINK_LIBRARIES)
+    message(STATUS "Interface dependencies for ${target}: ${interface_deps}")
+    
+    # Get all build dependencies
+    get_target_property(build_deps ${target} MANUALLY_ADDED_DEPENDENCIES)
+    message(STATUS "Build dependencies for ${target}: ${build_deps}")
+endfunction()
