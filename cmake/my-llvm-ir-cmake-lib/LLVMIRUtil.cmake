@@ -1523,7 +1523,7 @@ function(create_bc_target_without_rebuild)
             add_dependencies(${TRGT} ${lib})
         endif()
     endforeach()
-    
+
     # set the LLVM_TYPE to LLVM_LL_TYPE
     # LLVM_LL_TYPE can be generated into LLVM_BC_TYPE and LLVM_OBJ_TYPE but
     # not LLVM_EXE_TYPE because this means it's possible for the IR files to 
@@ -1546,4 +1546,97 @@ function(create_bc_target_without_rebuild)
         ${GLOBAL_LIB_LINKING_LIBS})
     set_property(TARGET ${TRGT} PROPERTY LIB_INCLUDES ${GLOBAL_LIB_INCLUDES})
     set_property(TARGET ${TRGT} PROPERTY LIB_OPTIONS ${GLOBAL_LIB_OPTIONS})
+endfunction()
+
+function(rebuild_depend_targets_libraries)
+    # List of options without values (boolean flags)
+    set(options)
+
+    # Arguments that take exactly one value
+    # TARGET: Name of the output BC target to be generated
+    set(oneValueArgs TARGET)
+
+    # Arguments that can take multiple values
+    # DEPEND_TARGETS: List of CMake targets to generate BC from
+    # ADDITIONAL_COMMANDS: Extra compiler flags to be appended to each compile 
+    # command
+    set(multiValueArgs 
+        DEPEND_TARGETS
+    )
+
+    # Parse the function arguments
+    cmake_parse_arguments(LLVM_GENERATE 
+        "${options}" 
+        "${oneValueArgs}" 
+        "${multiValueArgs}" 
+        ${ARGN}
+    )
+
+    set(TRGT ${LLVM_GENERATE_TARGET})
+    set(DEP_TRGTS ${LLVM_GENERATE_DEPEND_TARGETS})
+
+    if(NOT TRGT)
+        message(FATAL_ERROR 
+            "create_bc_target_without_rebuild: missing TARGET option")
+    endif()
+
+    if(NOT DEP_TRGTS)
+        message(FATAL_ERROR 
+            "create_bc_target_without_rebuild: missing DEPEND_TARGETS option")
+    endif()
+
+    # list of all the library targets that the final target will be dependent 
+    # on
+    set(temp_library_target_list "")
+
+    foreach(dep_trgt ${DEP_TRGTS})
+        # all the libraries that are linked to this target, i.e. using 
+        # target_link_libraries
+        get_property(LOCAL_LINK_LIBRARIES
+            TARGET ${dep_trgt}
+            PROPERTY LINK_LIBRARIES
+        )
+        
+        # we will remove all the targets in the dependency list from the
+        # link libraries list because we will be generating the IR for them
+        # and we don't want to link them again
+        set(dep_targets_list ${DEP_TRGTS})
+        # Check if library is in dependency list
+        set(NEW_LINK_LIBRARIES "")
+        foreach(lib ${LOCAL_LINK_LIBRARIES})
+            if(NOT "${lib}" IN_LIST dep_targets_list)
+                list(APPEND NEW_LINK_LIBRARIES "${lib}")
+            endif()
+        endforeach()
+        list(APPEND temp_library_target_list ${NEW_LINK_LIBRARIES})
+
+    endforeach()
+
+    list(REMOVE_DUPLICATES temp_library_target_list)
+
+    set(new_temp_library_target_list "")
+
+    # check if the library targets are valid, if not, remove them from the list
+    # of dependencies
+    foreach(lib ${temp_library_target_list})
+        if(TARGET ${lib})
+            list(APPEND new_temp_library_target_list ${lib})
+        endif()
+    endforeach()
+
+    set(temp_library_target_list ${new_temp_library_target_list})
+
+    message(STATUS "temp_library_target_list: ${temp_library_target_list}")
+
+    add_custom_target(${TRGT} ALL 
+        DEPENDS ${BC_FILE_PATH} ${temp_library_target_list}
+    )
+
+    # Then explicitly add the build dependencies
+    foreach(lib ${temp_library_target_list})
+        if(TARGET ${lib})
+            add_dependencies(${TRGT} ${lib})
+        endif()
+    endforeach()
+
 endfunction()
