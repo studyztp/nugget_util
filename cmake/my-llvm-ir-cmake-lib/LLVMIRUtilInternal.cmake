@@ -577,16 +577,33 @@ function(debug_dependencies target)
         message(STATUS "Not a target: ${target}")
         return()
     endif()
-    
+
     # Get direct dependencies
     get_target_property(deps ${target} LINK_LIBRARIES)
-    message(STATUS "Direct dependencies for ${target}: ${deps}")
-    
+    message(STATUS "-- Direct dependencies for ${target}: ${deps}")
+
     # Get interface dependencies
     get_target_property(interface_deps ${target} INTERFACE_LINK_LIBRARIES)
-    message(STATUS "Interface dependencies for ${target}: ${interface_deps}")
-    
-    # Get all build dependencies
+    message(STATUS "-- Interface dependencies for ${target}: ${interface_deps}")
+
+    # Get build dependencies
     get_target_property(build_deps ${target} MANUALLY_ADDED_DEPENDENCIES)
-    message(STATUS "Build dependencies for ${target}: ${build_deps}")
+    message(STATUS "-- Build dependencies for ${target}: ${build_deps}")
+
+    # Force build of dependencies
+    if(deps)
+        foreach(dep ${deps})
+            if(TARGET ${dep})
+                add_dependencies(${target} ${dep})
+            endif()
+        endforeach()
+    endif()
+    
+    if(interface_deps)
+        foreach(dep ${interface_deps})
+            if(TARGET ${dep})
+                add_dependencies(${target} ${dep})
+            endif()
+        endforeach()
+    endif()
 endfunction()
