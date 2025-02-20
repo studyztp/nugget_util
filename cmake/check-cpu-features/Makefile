@@ -16,7 +16,7 @@ LLVM_CLANG++ = ${LLVM_BIN}/clang++
 ARCH := $(shell uname -m)
 ifeq ($(ARCH),aarch64)
     SYSTEM_LIB = /usr/lib/aarch64-linux-gnu
-    NCURSES_LIB = -L$(SYSTEM_LIB) -l:libncurses.so.6
+    NCURSES_LIB = -L$(SYSTEM_LIB) -l:libncurses.so.6 -ltinfo
 else
     SYSTEM_LIB = /usr/lib/x86_64-linux-gnu
     NCURSES_LIB = -lncurses
