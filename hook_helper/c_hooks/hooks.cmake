@@ -11,8 +11,6 @@ set(ALL_HOOKS
     single-threaded-papi-nugget
 )
 
-include(param)
-
 message(STATUS "PAPI_PATH=${PAPI_PATH}")
 message(STATUS "M5_PATH=${M5_PATH}")
 message(STATUS "M5_INCLUDE_PATH=${M5_INCLUDE_PATH}")
