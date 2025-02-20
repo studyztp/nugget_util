@@ -30,6 +30,10 @@ macro(llvmir_setup)
         set(LLVM_EXECUTABLE_OUTPUT_DIR "llvm-exec")
     endif()
 
+    if (NOT DEFINED LLVM_OBJ_OUTPUT_DIR)
+        set(LLVM_OBJ_OUTPUT_DIR "llvm-obj")
+    endif()
+
     # LLVM BIN indicates where to find the LLVM executables
     if (NOT DEFINED LLVM_BIN)
         set(LLVM_BIN "")

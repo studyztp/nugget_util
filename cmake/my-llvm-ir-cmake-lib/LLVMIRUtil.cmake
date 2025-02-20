@@ -1513,27 +1513,17 @@ function(create_bc_target_without_rebuild)
     message(STATUS "GLOBAL_LIB_OPTIONS: ${GLOBAL_LIB_OPTIONS}")
     message(STATUS "temp_library_target_list: ${temp_library_target_list}")
 
-    # force build depedenices
-    set(DEP_BUILD_TARGET "${TRGT}_deps")
-    add_custom_target(${DEP_BUILD_TARGET}
-        COMMENT "Building dependencies for ${TRGT}"
+    add_custom_target(${TRGT} ALL 
+        DEPENDS ${BC_FILE_PATH} ${temp_library_target_list}
     )
-    # Add each library dependency to be built
+
+    # Then explicitly add the build dependencies
     foreach(lib ${temp_library_target_list})
         if(TARGET ${lib})
-            # Force build the library first
-            get_property(lib_name TARGET ${lib} PROPERTY NAME)
-            add_custom_command(
-                TARGET ${DEP_BUILD_TARGET}
-                PRE_BUILD
-                COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target ${lib_name}
-                COMMENT "Building dependency ${lib}"
-            )
+            add_dependencies(${TRGT} ${lib})
         endif()
     endforeach()
-
-    add_custom_target(${TRGT} ALL DEPENDS ${BC_FILE_PATH} ${temp_library_target_list})
-
+    
     # set the LLVM_TYPE to LLVM_LL_TYPE
     # LLVM_LL_TYPE can be generated into LLVM_BC_TYPE and LLVM_OBJ_TYPE but
     # not LLVM_EXE_TYPE because this means it's possible for the IR files to 
