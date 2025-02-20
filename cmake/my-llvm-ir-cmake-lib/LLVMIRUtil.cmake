@@ -1080,7 +1080,7 @@ function(llvm_llc_into_obj_target)
     add_custom_command(OUTPUT ${OUTPUT_LLVM_OBJ_FILE_PATH}
         COMMAND ${LLVM_LLC} --filetype=obj ${INPUT_FILE} ${LLC_CMD} -o 
             ${OUTPUT_LLVM_OBJ_FILE_PATH}
-        DEPENDS ${INPUT_FILE}
+        DEPENDS ${INPUT_FILE} ${DEP_TRGT}
         COMMENT "Compiling object file from ${INPUT_FILE} with command: ${LLVM_LLC} ${LLC_CMD} ${INPUT_FILE} -o ${OUTPUT_LLVM_OBJ_FILE_PATH}"
         VERBATIM
     )
@@ -1199,7 +1199,7 @@ function(apply_opt_to_bc_target)
     add_custom_command(OUTPUT ${OUTPUT_LLVM_BC_FILE_PATH}
         COMMAND ${LLVM_OPT} ${INPUT_FILE} ${OPT_CMD} -o 
             ${OUTPUT_LLVM_BC_FILE_PATH}
-        DEPENDS ${INPUT_FILE}
+        DEPENDS ${INPUT_FILE} ${DEP_TRGT}
         COMMENT "Optimizing BC file from ${INPUT_FILE} with command: ${LLVM_OPT} ${OPT_CMD} ${INPUT_FILE} -o ${OUTPUT_LLVM_BC_FILE_PATH}"
         VERBATIM
     )
@@ -1517,7 +1517,7 @@ function(create_bc_target_without_rebuild)
     foreach(dep ${temp_library_target_list})
         debug_dependencies(${dep})
     endforeach()
-    
+
     # add custom target for the bc file and make sure it doesn't rebuild
     # however, we will need to check if the library targets are still valid
     # Create target with explicit dependency ordering
