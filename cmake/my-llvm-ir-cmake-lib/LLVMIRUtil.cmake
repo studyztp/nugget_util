@@ -652,7 +652,7 @@ function(llvm_link_ir_into_bc_target)
     )
 
     # add custom target to generate the BC file
-    add_custom_target(${TRGT} ALL DEPENDS ${OUTPUT_LLVM_BC_FILE_PATH})
+    add_custom_target(${TRGT} ALL DEPENDS ${OUTPUT_LLVM_BC_FILE_PATH} ${DEP_TRGTS})
     # set the LLVM_TYPE to LLVM_BC_TYPE
     set_property(TARGET ${TRGT} PROPERTY LLVM_TYPE ${LLVM_BC_TYPE})
     set_property(TARGET ${TRGT} PROPERTY LLVM_SOURCE_FILES ${GLOBAL_SOURCES})
@@ -833,7 +833,7 @@ function(llvm_link_bc_targets)
     )
 
     # add custom target to generate the BC file
-    add_custom_target(${TRGT} ALL DEPENDS ${OUTPUT_LLVM_BC_FILE_PATH})
+    add_custom_target(${TRGT} ALL DEPENDS ${OUTPUT_LLVM_BC_FILE_PATH} ${DEP_TRGTS})
     # set the LLVM_TYPE to LLVM_BC_TYPE
     set_property(TARGET ${TRGT} PROPERTY LLVM_TYPE ${LLVM_BC_TYPE})
     set_property(TARGET ${TRGT} PROPERTY LLVM_SOURCE_FILES ${GLOBAL_SOURCES})
@@ -968,7 +968,7 @@ function(llvm_compile_into_executable_target)
             VERBATIM)
     
     # add custom target to generate the executable
-    add_custom_target(${TRGT} ALL DEPENDS ${OUTPUT_LLVM_EXE_FILE_PATH})
+    add_custom_target(${TRGT} ALL DEPENDS ${OUTPUT_LLVM_EXE_FILE_PATH} ${DEP_TRGT})
     # set the LLVM_TYPE to LLVM_EXE_TYPE
     set_property(TARGET ${TRGT} PROPERTY LLVM_TYPE ${LLVM_EXE_TYPE})
     set_property(TARGET ${TRGT} PROPERTY LLVM_SOURCE_FILES ${INPUT_FILE})
@@ -1086,7 +1086,7 @@ function(llvm_llc_into_obj_target)
     )
 
     # add custom target to generate the object file
-    add_custom_target(${TRGT} ALL DEPENDS ${OUTPUT_LLVM_OBJ_FILE_PATH})
+    add_custom_target(${TRGT} ALL DEPENDS ${OUTPUT_LLVM_OBJ_FILE_PATH} ${DEP_TRGT})
     # set the LLVM_TYPE to LLVM_OBJ_TYPE
     set_property(TARGET ${TRGT} PROPERTY LLVM_TYPE ${LLVM_OBJ_TYPE})
     set_property(TARGET ${TRGT} PROPERTY LLVM_SOURCE_FILES ${INPUT_FILE})
@@ -1199,13 +1199,13 @@ function(apply_opt_to_bc_target)
     add_custom_command(OUTPUT ${OUTPUT_LLVM_BC_FILE_PATH}
         COMMAND ${LLVM_OPT} ${INPUT_FILE} ${OPT_CMD} -o 
             ${OUTPUT_LLVM_BC_FILE_PATH}
-        DEPENDS ${INPUT_FILE} ${DEP_TRGT}
+        DEPENDS ${INPUT_FILE} 
         COMMENT "Optimizing BC file from ${INPUT_FILE} with command: ${LLVM_OPT} ${OPT_CMD} ${INPUT_FILE} -o ${OUTPUT_LLVM_BC_FILE_PATH}"
         VERBATIM
     )
 
     # add custom target to generate the optimized BC file
-    add_custom_target(${TRGT} ALL DEPENDS ${OUTPUT_LLVM_BC_FILE_PATH})
+    add_custom_target(${TRGT} ALL DEPENDS ${OUTPUT_LLVM_BC_FILE_PATH} ${DEP_TRGT})
     # set the LLVM_TYPE to LLVM_BC_TYPE
     set_property(TARGET ${TRGT} PROPERTY LLVM_TYPE ${LLVM_BC_TYPE})
     set_property(TARGET ${TRGT} PROPERTY LLVM_SOURCE_FILES ${INPUT_FILE})
@@ -1513,34 +1513,7 @@ function(create_bc_target_without_rebuild)
     message(STATUS "GLOBAL_LIB_OPTIONS: ${GLOBAL_LIB_OPTIONS}")
     message(STATUS "temp_library_target_list: ${temp_library_target_list}")
 
-    # Debug dependencies before creating target
-    foreach(dep ${temp_library_target_list})
-        debug_dependencies(${dep})
-    endforeach()
-
-    # add custom target for the bc file and make sure it doesn't rebuild
-    # however, we will need to check if the library targets are still valid
-    # Create target with explicit dependency ordering
-    add_custom_target(${TRGT} ALL)
-    
-    # Add build-order dependencies
-    foreach(dep ${temp_library_target_list})
-        if(TARGET ${dep})
-            add_dependencies(${TRGT} ${dep})
-        endif()
-    endforeach()
-    
-    # Add file dependencies
-    if(BC_FILE_PATH)
-        add_custom_command(
-            TARGET ${TRGT}
-            PRE_BUILD
-            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}
-            COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target ${temp_library_target_list}
-            DEPENDS ${BC_FILE_PATH} ${temp_library_target_list}
-            COMMENT "Building dependencies for ${TRGT}"
-        )
-    endif()
+    add_custom_target(${TRGT} ALL DEPENDS ${BC_FILE_PATH} ${temp_library_target_list})
 
     # set the LLVM_TYPE to LLVM_LL_TYPE
     # LLVM_LL_TYPE can be generated into LLVM_BC_TYPE and LLVM_OBJ_TYPE but
