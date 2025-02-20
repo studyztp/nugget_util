@@ -1515,7 +1515,8 @@ function(create_bc_target_without_rebuild)
 
     # add custom target for the bc file and make sure it doesn't rebuild
     # however, we will need to check if the library targets are still valid
-    add_custom_target(${TRGT} ALL DEPENDS ${temp_library_target_list})
+    add_custom_target(${TRGT} ALL)
+    add_dependencies(${TRGT} ${temp_library_target_list})
 
     # set the LLVM_TYPE to LLVM_LL_TYPE
     # LLVM_LL_TYPE can be generated into LLVM_BC_TYPE and LLVM_OBJ_TYPE but
