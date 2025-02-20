@@ -145,6 +145,9 @@ macro(llvmir_setup)
     define_property(TARGET PROPERTY LIB_OPTIONS
         BRIEF_DOCS "library compile options"
         FULL_DOCS "library compile options for the target")
+    define_property(TARGET PROPERTY LIB_TARGET_DEPENDS
+        BRIEF_DOCS "library target dependencies"
+        FULL_DOCS "library target dependencies for the target")
     
 endmacro()
 

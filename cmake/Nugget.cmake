@@ -280,6 +280,7 @@ function(nugget_compile_exe)
             DEPEND_TARGETS ${DEP_TRGTS}
         )
         set(BC_TARGET ${TRGT}_bc)
+        get_property(LIB_TARGET_DEPENDS TARGET ${BC_TARGET} PROPERTY LIB_TARGET_DEPENDS)
     else()
         set(count 0)
         foreach(DEP_TRGT ${DEP_TRGTS})
@@ -294,7 +295,7 @@ function(nugget_compile_exe)
     if(LLC_CMD)
         llvm_llc_into_obj_target(
             TARGET ${TRGT}_obj
-            DEPEND_TARGET ${BC_TARGET}
+            DEPEND_TARGET ${BC_TARGET} ${LIB_TARGET_DEPENDS}
             LLC_COMMAND ${LLC_CMD}
         )
         set(OBJ_TARGET ${TRGT}_obj)
