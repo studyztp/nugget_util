@@ -166,44 +166,60 @@ function(llvmir_extract_compile_defs_properties out_compile_defs from)
   # per directory
   get_property(defs DIRECTORY PROPERTY ${prop_name})
   foreach(def ${defs})
-    list(APPEND compile_defs -D${def})
+    list(APPEND compile_defs ${def})
   endforeach()
 
   get_property(defs DIRECTORY PROPERTY ${prop_name}_${CMAKE_BUILD_TYPE})
   foreach(def ${defs})
-    list(APPEND compile_defs -D${def})
+    list(APPEND compile_defs ${def})
   endforeach()
 
   # per target
   if(TARGET ${from})
     get_property(defs TARGET ${from} PROPERTY ${prop_name})
     foreach(def ${defs})
-      list(APPEND compile_defs -D${def})
+      list(APPEND compile_defs ${def})
     endforeach()
 
     get_property(defs TARGET ${from} PROPERTY ${prop_name}_${CMAKE_BUILD_TYPE})
     foreach(def ${defs})
-      list(APPEND compile_defs -D${def})
+      list(APPEND compile_defs ${def})
     endforeach()
 
     get_property(defs TARGET ${from} PROPERTY INTERFACE_${prop_name})
     foreach(def ${defs})
-      list(APPEND compile_defs -D${def})
+      list(APPEND compile_defs ${def})
     endforeach()
   else()
     # per file
     get_property(defs SOURCE ${from} PROPERTY ${prop_name})
     foreach(def ${defs})
-      list(APPEND compile_defs -D${def})
+      list(APPEND compile_defs ${def})
     endforeach()
 
     get_property(defs SOURCE ${from} PROPERTY ${prop_name}_${CMAKE_BUILD_TYPE})
     foreach(def ${defs})
-      list(APPEND compile_defs -D${def})
+      list(APPEND compile_defs ${def})
     endforeach()
   endif()
 
   list(REMOVE_DUPLICATES compile_defs)
+
+  set(temp "")
+  foreach(def ${compile_defs})
+    if(def STREQUAL "")
+      continue()
+    elseif(def MATCHES "\\$<\\$<C_COMPILER_ID:([^>]+)>:([^>]+)>")
+      set(option "${CMAKE_MATCH_2}")
+      if(${option})
+        list(APPEND temp -D${option})
+      endif()
+    else()
+      list(APPEND temp -D${def})
+    endif()
+  endforeach()
+
+  set(compile_defs ${temp})
 
   debug("@llvmir_extract_compile_defs_properties ${from}: ${compile_defs}")
 
@@ -234,6 +250,21 @@ function(llvmir_extract_compile_option_properties out_compile_options trgt)
 
   list(REMOVE_DUPLICATES compile_options)
 
+  set(temp "")
+
+  foreach(opt compile_options)
+    if(opt MATCHES "^\\$<C_COMPILER_ID:")
+      extract_generator_option(extracted_opt ${opt})
+      if(extracted_opt)
+        list(APPEND temp ${extracted_opt})
+      endif()
+    elseif()
+      list(APPEND temp ${opt})
+    endif()
+  endforeach()
+
+  set(compile_options ${temp})
+  
   debug("@llvmir_extract_compile_option_properties ${trgt}: ${compile_options}")
 
   set(${out_compile_options} ${compile_options} PARENT_SCOPE)
@@ -268,6 +299,20 @@ function(llvmir_extract_include_dirs_properties out_include_dirs trgt)
   if(include_dirs)
     list(REMOVE_DUPLICATES include_dirs)
   endif()
+
+  set(temp "")
+
+  foreach(dir ${include_dirs})
+    if(dir MATCHES "\\$<INSTALL_INTERFACE:([^>]+)>")
+      list(APPEND temp -I${CMAKE_MATCH_1})
+    elseif(dir MATCHES "\\$<BUILD_INTERFACE:([^>]+)>")
+      list(APPEND temp -I${CMAKE_MATCH_1})
+    else()
+      list(APPEND temp ${dir})
+    endif()
+  endforeach()
+
+  set(include_dirs ${temp})
 
   debug("@llvmir_extract_include_dirs_properties ${trgt}: ${include_dirs}")
 
@@ -576,3 +621,14 @@ function(check_lang_flag_works_with_llvm_compiler flag lang result)
     file(REMOVE_RECURSE ${test_dir})
 endfunction()
 
+function(extract_generator_option output_var input_string)
+  string(REGEX MATCH ":([^>]*)>$" matched "${input_string}")
+  if(matched)
+      # Remove the colon and closing bracket
+      string(REGEX REPLACE "^:|>$" "" option "${matched}")
+      # Remove leading/trailing semicolons
+      string(REGEX REPLACE "^;|;$" "" option "${option}")
+      set(${output_var} "${option}" PARENT_SCOPE)
+  endif()
+  set(${output_var} "" PARENT_SCOPE)
+endfunction()

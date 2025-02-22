@@ -350,9 +350,10 @@ function(llvm_generate_ir_target)
 
     # all the properties are set, now we can generate the IR
     foreach(dep_trgt ${DEP_TRGTS})
+        get_property(dep_trgt_name TARGET ${dep_trgt} PROPERTY NAME)
         # each dependent target will have its own work directory to distinguish
         # the generated IR files and for better debugging
-        set(TARGET_WORKDIR ${WORK_DIR}/${dep_trgt})
+        set(TARGET_WORKDIR ${WORK_DIR}/${dep_trgt_name})
         if(NOT EXISTS "${TARGET_WORKDIR}")
             file(MAKE_DIRECTORY "${TARGET_WORKDIR}")
             if(NOT EXISTS "${TARGET_WORKDIR}")
@@ -362,9 +363,26 @@ function(llvm_generate_ir_target)
             endif()
         endif()
 
+        get_property(source_dir TARGET ${dep_trgt} PROPERTY SOURCE_DIR)
+
         get_property(LOCAL_FILES TARGET ${dep_trgt} PROPERTY SOURCES)
 
         foreach(file ${LOCAL_FILES})
+            # file path has to be real path
+            if(NOT EXISTS "${file}")
+                set(abs_path "${source_dir}/${file}")
+                if(NOT EXISTS "${abs_path}")
+                    cmake_path(ABSOLUTE_PATH file OUTPUT_VARIABLE abs_path)
+                    if(NOT EXISTS "${abs_path}")
+                        message(FATAL_ERROR 
+                            "[llvm_generate_ir_target]: file ${file} does not exist"
+                        )
+                    endif()
+                endif()
+            else()
+                set(abs_path "${file}")
+            endif()
+            
             # filename is with the extension, i.e. file.cpp
             cmake_path(GET file FILENAME filename)
             # stem is the filename without the extension, i.e. file
@@ -439,17 +457,16 @@ function(llvm_generate_ir_target)
                 ${GLOBAL_LIB_LINKING_LIBS} ${ADD_LIBS} 
             )
 
+            message(STATUS "Generating IR for ${abs_path}")
             # add custom command to compile the file
             # in here, we add the dependencies of the libraries that the target
             # is dependent on so that the libraries will be built before the
             # IR generation
             add_custom_command(OUTPUT ${OUTPUT_FILEPATH}
-                COMMAND ${FILE_COMPILER} ${FILE_COMPILE_CMD} ${file} 
+                COMMAND ${FILE_COMPILER} ${FILE_COMPILE_CMD} ${abs_path} 
                     -o ${OUTPUT_FILEPATH} 
-                DEPENDS ${file} ${temp_library_target_list}
-                COMMENT "Generating LLVM IR for ${file} with command:"
-                    "${FILE_COMPILER} ${FILE_COMPILE_CMD} ${file} -o "
-                    "${OUTPUT_FILEPATH} ${ADD_CMDS}"
+                DEPENDS ${abs_path} ${temp_library_target_list}
+                COMMENT "Generating LLVM IR for ${file} with command: ${FILE_COMPILER} ${FILE_COMPILE_CMD} ${file} -o ${OUTPUT_FILEPATH} ${ADD_CMDS}"
                 VERBATIM
             )
         endforeach()
@@ -1639,4 +1656,95 @@ function(rebuild_depend_targets_libraries)
         endif()
     endforeach()
 
+endfunction()
+
+function(get_all_libraries_target)
+    # List of options without values (boolean flags)
+    set(options)
+
+    # Arguments that take exactly one value
+    # TARGET: Name of the output BC target to be generated
+    set(oneValueArgs TARGET_LIST)
+
+    # Arguments that can take multiple values
+    # DEPEND_TARGETS: List of CMake targets to generate BC from
+    # ADDITIONAL_COMMANDS: Extra compiler flags to be appended to each compile 
+    # command
+    set(multiValueArgs 
+        DEPEND_TARGETS
+    )
+
+    # Parse the function arguments
+    cmake_parse_arguments(LLVM_GENERATE 
+        "${options}" 
+        "${oneValueArgs}" 
+        "${multiValueArgs}" 
+        ${ARGN}
+    )
+
+    set(TARGET_LIST ${LLVM_GENERATE_TARGET_LIST})
+    set(DEP_TRGTS ${LLVM_GENERATE_DEPEND_TARGETS})
+
+    if(NOT TARGET_LIST)
+        message(FATAL_ERROR 
+            "create_bc_target_without_rebuild: missing TARGET_LIST option")
+    endif()
+
+    if(NOT DEP_TRGTS)
+        message(FATAL_ERROR 
+            "create_bc_target_without_rebuild: missing DEPEND_TARGETS option")
+    endif()
+
+    # list of all the library targets that the final target will be dependent 
+    # on
+    set(temp_library_target_list "")
+
+    foreach(dep_trgt ${DEP_TRGTS})
+        # all the libraries that are linked to this target, i.e. using 
+        # target_link_libraries
+        get_property(LOCAL_LINK_LIBRARIES
+            TARGET ${dep_trgt}
+            PROPERTY LINK_LIBRARIES
+        )
+        
+        # we will remove all the targets in the dependency list from the
+        # link libraries list because we will be generating the IR for them
+        # and we don't want to link them again
+        set(dep_targets_list ${DEP_TRGTS})
+        # Check if library is in dependency list
+        set(NEW_LINK_LIBRARIES "")
+        foreach(lib ${LOCAL_LINK_LIBRARIES})
+            if(NOT "${lib}" IN_LIST dep_targets_list)
+                list(APPEND NEW_LINK_LIBRARIES "${lib}")
+            endif()
+        endforeach()
+        list(APPEND temp_library_target_list ${NEW_LINK_LIBRARIES})
+
+    endforeach()
+
+    list(REMOVE_DUPLICATES temp_library_target_list)
+
+    set(new_temp_library_target_list "")
+
+    set(valid_library_types "STATIC_LIBRARY" "SHARED_LIBRARY" "MODULE_LIBRARY")
+
+    # check if the library targets are valid, if not, remove them from the list
+    # of dependencies
+    foreach(lib ${temp_library_target_list})
+        if(TARGET ${lib})
+            get_property(lib_type TARGET ${lib} PROPERTY TYPE)
+            if("${lib_type}" IN_LIST valid_library_types)
+                get_property(if_imported TARGET ${lib} PROPERTY IMPORTED)
+                if(NOT if_imported)
+                    list(APPEND new_temp_library_target_list ${lib})
+                endif()
+            endif()
+        endif()
+    endforeach()
+
+    set(temp_library_target_list ${new_temp_library_target_list})
+
+    message(STATUS "all library targets: ${temp_library_target_list}")
+
+    set(${TARGET_LIST} ${temp_library_target_list} PARENT_SCOPE)
 endfunction()
