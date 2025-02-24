@@ -326,7 +326,7 @@ function(nugget_compile_exe)
                 DEPEND_TARGET ${BC_TARGET}
                 FUNCTIONS ${EXTRACT_FUNCTIONS}
             )
-            set(BB_TARGET ${TRGT}_source_bc ${TRGT}_hook_bc)
+            set(BB_TARGET ${TRGT}_hook_bc ${TRGT}_source_bc)
         endif()
 
         if(SHRUNK_BC)
