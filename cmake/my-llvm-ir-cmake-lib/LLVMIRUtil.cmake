@@ -1921,7 +1921,7 @@ function(llvm_extract_functions_to_bc)
 
     set(FUNCTION_CMD "")
     foreach(func ${FUNCTIONS})
-        list(APPEND FUNCTION_CMD "--func=${func}")
+        list(APPEND FUNCTION_CMD "--rfunc=${func}")
     endforeach()
 
     add_custom_command(OUTPUT ${OUTPUT_LLVM_BC_FILE_PATH}
@@ -2044,11 +2044,11 @@ function(llvm_delete_functions_from_bc)
 
     set(FUNCTION_CMD "")
     foreach(func ${FUNCTIONS})
-        list(APPEND FUNCTION_CMD "--func=${func}")
+        list(APPEND FUNCTION_CMD "--rfunc=${func}")
     endforeach()
 
     add_custom_command(OUTPUT ${OUTPUT_LLVM_BC_FILE_PATH}
-        COMMAND ${LLVM_EXTRACTER} ${INPUT_FILE} ${FUNCTION_CMD} --delete
+        COMMAND ${LLVM_EXTRACTER} ${INPUT_FILE} ${FUNCTION_CMD} --recursive --delete
             -o ${OUTPUT_LLVM_BC_FILE_PATH}
         DEPENDS ${INPUT_FILE} ${DEP_TRGT}
         COMMENT "Deleting functions ${FUNCTION_CMD} from ${INPUT_FILE} with command: ${LLVM_EXTRACTER} ${INPUT_FILE} ${FUNCTION_CMD} --delete -o ${OUTPUT_LLVM_BC_FILE_PATH}"

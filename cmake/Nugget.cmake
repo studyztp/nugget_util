@@ -242,7 +242,7 @@ function(nugget_nugget_bc)
 endfunction()
 
 function(nugget_compile_exe)
-    set(options EXTRACT_HOOK)
+    set(options SHRUNK_BC)
     set(oneValueArgs TARGET BB_FILE_PATH)
     set(multiValueArgs 
         DEPEND_TARGETS
@@ -251,6 +251,7 @@ function(nugget_compile_exe)
         EXTRA_LIB_PATHS
         EXTRA_LIBS   
         LLC_CMD
+        EXTRACT_FUNCTIONS
     )
     cmake_parse_arguments(
         NUGGET_COMPILE_EXE
@@ -265,7 +266,8 @@ function(nugget_compile_exe)
     set(EXTRA_LIBS ${NUGGET_COMPILE_EXE_EXTRA_LIBS})
     set(BC_FILE_PATH ${NUGGET_COMPILE_EXE_BB_FILE_PATH})
     set(LLC_CMD ${NUGGET_COMPILE_EXE_LLC_CMD})
-    set(EXTRACT_HOOK ${NUGGET_COMPILE_EXE_EXTRACT_HOOK})
+    set(EXTRACT_FUNCTIONS ${NUGGET_COMPILE_EXE_EXTRACT_FUNCTIONS})
+    set(SHRUNK_BC ${NUGGET_COMPILE_EXE_SHRUNK_BC})
 
     if (NOT TRGT)
         message(FATAL_ERROR "TARGET not set")
@@ -300,18 +302,31 @@ function(nugget_compile_exe)
         set(BC_TARGET ${DEP_TRGTS})
     endif()
 
-    if(EXTRACT_HOOK) 
+    if(EXTRACT_FUNCTIONS) 
         llvm_extract_functions_to_bc(
             TARGET ${TRGT}_hook_bc
             DEPEND_TARGET ${BC_TARGET}
-            FUNCTIONS bb_hook
+            FUNCTIONS ${EXTRACT_FUNCTIONS}
         )
         llvm_delete_functions_from_bc(
             TARGET ${TRGT}_source_bc
             DEPEND_TARGET ${BC_TARGET}
-            FUNCTIONS bb_hook increase_array process_data
+            FUNCTIONS ${EXTRACT_FUNCTIONS}
         )
         set(BB_TARGET ${TRGT}_source_bc ${TRGT}_hook_bc)
+    endif()
+
+    if(SHRUNK_BC)
+        set(NEW_LIST "")
+        foreach(target ${BB_TARGET})
+            apply_opt_to_bc_target(
+                TARGET ${target}_shrunk_bc
+                DEPEND_TARGET ${target}
+                OPT_COMMAND -Os
+            )
+            list(APPEND NEW_LIST ${target}_shrunk_bc)
+        endforeach()
+        set(BB_TARGET ${NEW_LIST})
     endif()
 
     if(LLC_CMD)
