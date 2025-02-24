@@ -242,8 +242,8 @@ function(nugget_nugget_bc)
 endfunction()
 
 function(nugget_compile_exe)
-    set(options SHRUNK_BC)
-    set(oneValueArgs TARGET BB_FILE_PATH)
+    set(options)
+    set(oneValueArgs TARGET BB_FILE_PATH SHRUNK_BC)
     set(multiValueArgs 
         DEPEND_TARGETS
         EXTRA_FLAGS
@@ -288,7 +288,7 @@ function(nugget_compile_exe)
     if(FINAL_BB_FILE_PATHS)
         set(BC_TARGET "")
         foreach(bb_file_path ${FINAL_BB_FILE_PATHS})
-            cmake_path(GET bb_file_path FILENAME bb_file_name)
+            cmake_path(GET bb_file_path STEM bb_file_name)
             create_bc_target_without_rebuild(
                 TARGET ${bb_file_name}_bc
                 BC_FILE_PATH ${bb_file_path}
@@ -330,12 +330,14 @@ function(nugget_compile_exe)
         endif()
 
         if(SHRUNK_BC)
+            message(STATUS "Shrinking BC files")
+            message(STATUS "options: ${SHRUNK_BC}")
             set(NEW_LIST "")
             foreach(target ${BC_TARGET})
                 apply_opt_to_bc_target(
                     TARGET ${target}_shrunk_bc
                     DEPEND_TARGET ${target}
-                    OPT_COMMAND -Os
+                    OPT_COMMAND -O2
                 )
                 list(APPEND NEW_LIST ${target}_shrunk_bc)
             endforeach()
