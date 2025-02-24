@@ -54,8 +54,8 @@ function(nugget_bbv_profiling_bc)
     endif()
 
     llvm_generate_ir_target(
-        TARGET ${TRGT}_source_ir
-        DEPEND_TARGETS ${DEP_TRGTS}
+        TARGET ${TRGT}_hook_ir
+        DEPEND_TARGETS ${HOOK_TARGET}
         EXTRA_FLAGS ${EXTRA_FLAGS}
         EXTRA_INCLUDES ${EXTRA_INCLUDES}
         EXTRA_LIB_PATHS ${EXTRA_LIB_PATHS}
@@ -63,8 +63,8 @@ function(nugget_bbv_profiling_bc)
     )
 
     llvm_generate_ir_target(
-        TARGET ${TRGT}_hook_ir
-        DEPEND_TARGETS ${HOOK_TARGET}
+        TARGET ${TRGT}_source_ir
+        DEPEND_TARGETS ${DEP_TRGTS}
         EXTRA_FLAGS ${EXTRA_FLAGS}
         EXTRA_INCLUDES ${EXTRA_INCLUDES}
         EXTRA_LIB_PATHS ${EXTRA_LIB_PATHS}
@@ -98,6 +98,7 @@ function(nugget_bbv_profiling_bc)
         DEPEND_TARGET ${TRGT}_bc
         OPT_COMMAND ${OPT_CMD}
     )
+
 endfunction()
 
 function(nugget_nugget_bc)
@@ -106,6 +107,7 @@ function(nugget_nugget_bc)
         TARGET 
         HOOK_TARGET
         SOURCE_BC_FILE_PATH
+        HOOK_BC_FILE_PATH
         INPUT_FILE_DIR 
         INPUT_FILE_NAME_BASE
         BB_INFO_INPUT_PATH 
@@ -140,6 +142,7 @@ function(nugget_nugget_bc)
     set(LABEL_TARGET ${NUGGET_NUGGET_BC_LABEL_TARGET})
     set(LABEL_WARMUP ${NUGGET_NUGGET_BC_LABEL_WARMUP})
     set(ALL_NUGGET_RIDS ${NUGGET_NUGGET_BC_ALL_NUGGET_RIDS})
+    set(HOOK_BC_FILE_PATH ${NUGGET_NUGGET_BC_HOOK_BC_FILE_PATH})
 
     if (NOT TRGT)
         message(FATAL_ERROR "TARGET not set")
@@ -180,29 +183,32 @@ function(nugget_nugget_bc)
         endif()
     endif()
 
-    llvm_generate_ir_target(
-        TARGET ${TRGT}_hook_ir
-        DEPEND_TARGETS ${HOOK_TARGET}
-        EXTRA_FLAGS ${EXTRA_FLAGS}
-        EXTRA_INCLUDES ${EXTRA_INCLUDES}
-        EXTRA_LIB_PATHS ${EXTRA_LIB_PATHS}
-        EXTRA_LIBS ${EXTRA_LIBS}
-    )
+    if (HOOK_BC_FILE_PATH AND EXISTS ${HOOK_BC_FILE_PATH})
+        create_bc_target_without_rebuild(
+            TARGET ${TRGT}_hook_bc
+            BC_FILE_PATH ${HOOK_BC_FILE_PATH}
+            DEPEND_TARGETS ${HOOK_TARGET}
+        )
+    else()
+        llvm_generate_ir_target(
+            TARGET ${TRGT}_hook_ir
+            DEPEND_TARGETS ${HOOK_TARGET}
+            EXTRA_FLAGS ${EXTRA_FLAGS}
+            EXTRA_INCLUDES ${EXTRA_INCLUDES}
+            EXTRA_LIB_PATHS ${EXTRA_LIB_PATHS}
+            EXTRA_LIBS ${EXTRA_LIBS}
+        )
 
-    llvm_link_ir_into_bc_target(
-        TARGET ${TRGT}_hook_bc
-        DEPEND_TARGETS ${TRGT}_hook_ir
-    )
+        llvm_link_ir_into_bc_target(
+            TARGET ${TRGT}_hook_bc
+            DEPEND_TARGETS ${TRGT}_hook_ir
+        )
+    endif()
 
     create_bc_target_without_rebuild(
         TARGET ${TRGT}_source_bc
         BC_FILE_PATH ${SOURCE_BC_FILE_PATH}
         DEPEND_TARGETS ${DEP_TRGTS}
-    )
-
-    llvm_link_bc_targets(
-        TARGET ${TRGT}_bc
-        DEPEND_TARGETS ${TRGT}_source_bc ${TRGT}_hook_bc
     )
 
     set(ALL_TARGETS "")
@@ -225,18 +231,18 @@ function(nugget_nugget_bc)
 
         apply_opt_to_bc_target(
             TARGET ${TRGT}_${rid}
-            DEPEND_TARGET ${TRGT}_bc
+            DEPEND_TARGET ${TRGT}_source_bc
             OPT_COMMAND ${OPT_CMD}
         )
         list(APPEND ALL_TARGETS ${TRGT}_${rid})
     endforeach()
 
-    add_custom_target(${TRGT} ALL DEPENDS ${ALL_TARGETS})
+    add_custom_target(${TRGT} ALL DEPENDS ${ALL_TARGETS} ${TRGT}_hook_bc)
 
 endfunction()
 
 function(nugget_compile_exe)
-    set(options)
+    set(options EXTRACT_HOOK)
     set(oneValueArgs TARGET BB_FILE_PATH)
     set(multiValueArgs 
         DEPEND_TARGETS
@@ -257,15 +263,16 @@ function(nugget_compile_exe)
     set(EXTRA_INCLUDES ${NUGGET_COMPILE_EXE_EXTRA_INCLUDES})
     set(EXTRA_LIB_PATHS ${NUGGET_COMPILE_EXE_EXTRA_LIB_PATHS})
     set(EXTRA_LIBS ${NUGGET_COMPILE_EXE_EXTRA_LIBS})
-    set(BB_FILE_PATH ${NUGGET_COMPILE_EXE_BB_FILE_PATH})
+    set(BC_FILE_PATH ${NUGGET_COMPILE_EXE_BB_FILE_PATH})
     set(LLC_CMD ${NUGGET_COMPILE_EXE_LLC_CMD})
+    set(EXTRACT_HOOK ${NUGGET_COMPILE_EXE_EXTRACT_HOOK})
 
     if (NOT TRGT)
         message(FATAL_ERROR "TARGET not set")
     endif()
 
     if (NOT DEP_TRGTS)
-        message(FATAL_ERROR "DEPEND_TARGETS not set")
+        message(FATAL_ERROR "DEP_TRGTS not set")
     endif()
 
     if(NOT LLVM_SETUP_DONE)
@@ -273,7 +280,9 @@ function(nugget_compile_exe)
             "Please call llvm_setup before calling nugget_bbv_profiling_exe")
     endif()
 
-    if(BB_FILE_PATH)
+    message(STATUS "If EXTRACT_HOOK: ${EXTRACT_HOOK}")
+
+    if(BC_FILE_PATH)
         create_bc_target_without_rebuild(
             TARGET ${TRGT}_bc
             BC_FILE_PATH ${BB_FILE_PATH}
@@ -286,25 +295,42 @@ function(nugget_compile_exe)
             math(EXPR count "${count} + 1")
         endforeach()
         if(count GREATER 1)
-            message(FATAL_ERROR "BB_FILE_PATH not set and DEPEND_TARGETS has more than one target")
+            message(FATAL_ERROR "BB_FILE_PATH not set for DEP_TRGTS has more than one target")
         endif()
         set(BC_TARGET ${DEP_TRGTS})
     endif()
 
-    if(LLC_CMD)
-        llvm_llc_into_obj_target(
-            TARGET ${TRGT}_obj
+    if(EXTRACT_HOOK) 
+        llvm_extract_functions_to_bc(
+            TARGET ${TRGT}_hook_bc
             DEPEND_TARGET ${BC_TARGET}
-            LLC_COMMAND ${LLC_CMD}
+            FUNCTIONS bb_hook
         )
-        set(OBJ_TARGET ${TRGT}_obj)
+        llvm_delete_functions_from_bc(
+            TARGET ${TRGT}_source_bc
+            DEPEND_TARGET ${BC_TARGET}
+            FUNCTIONS bb_hook increase_array process_data
+        )
+        set(BB_TARGET ${TRGT}_source_bc ${TRGT}_hook_bc)
+    endif()
+
+    if(LLC_CMD)
+        set(OBJ_TARGET "")
+        foreach(target ${BB_TARGET})
+            llvm_llc_into_obj_target(
+                TARGET ${target}_obj
+                DEPEND_TARGET ${target}
+                LLC_COMMAND ${LLC_CMD}
+            )
+            list(APPEND OBJ_TARGET ${target}_obj)
+        endforeach()
     else()
-        set(OBJ_TARGET ${BC_TARGET})
+        set(OBJ_TARGET ${BB_TARGET})
     endif()
 
     llvm_compile_into_executable_target(
         TARGET ${TRGT}
-        DEPEND_TARGET ${OBJ_TARGET}
+        DEPEND_TARGETS ${OBJ_TARGET}
         EXTRA_FLAGS ${EXTRA_FLAGS}
         EXTRA_LIB_PATHS ${EXTRA_LIB_PATHS}
         EXTRA_LIBS ${EXTRA_LIBS}

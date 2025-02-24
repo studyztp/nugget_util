@@ -881,7 +881,7 @@ function(llvm_compile_into_executable_target)
 
     # Arguments that take exactly one value
     # TARGET: Name of the output executable target to be generated
-    set(oneValueArgs TARGET DEPEND_TARGET)
+    set(oneValueArgs TARGET)
 
     # Arguments that can take multiple values
     # DEPEND_TARGETS: List of CMake targets to generate BC from
@@ -891,6 +891,7 @@ function(llvm_compile_into_executable_target)
         EXTRA_FLAGS 
         EXTRA_LIB_PATHS
         EXTRA_LIBS
+        DEPEND_TARGETS
     )
 
     # Parse the function arguments
@@ -910,7 +911,7 @@ function(llvm_compile_into_executable_target)
     endif()
 
     set(TRGT ${LLVM_GENERATE_TARGET})
-    set(DEP_TRGT ${LLVM_GENERATE_DEPEND_TARGET})
+    set(DEP_TRGTS ${LLVM_GENERATE_DEPEND_TARGETS})
     set(ADD_FLAGS ${LLVM_GENERATE_EXTRA_FLAGS})
     set(ADD_INCLUDES ${LLVM_GENERATE_EXTRA_INCLUDES})
     set(ADD_LIB_PATHS ${LLVM_GENERATE_EXTRA_LIB_PATHS})
@@ -920,27 +921,58 @@ function(llvm_compile_into_executable_target)
         message(FATAL_ERROR "llvm_compile_executable: missing TARGET option")
     endif()
 
-    if(NOT DEP_TRGT)
+    if(NOT DEP_TRGTS)
         message(FATAL_ERROR 
-            "llvm_compile_executable: missing DEPEND_TARGET option")
+            "llvm_compile_executable: missing DEPEND_TARGETS option")
     endif()
 
     # check if the necessary properties are set
     # for this function, we need the LLVM_TYPE property to be LLVM_BC_TYPE
     # or LLVM_OBJ_TYPE
-    
-    get_property(target_type TARGET ${DEP_TRGT} PROPERTY LLVM_TYPE)
-    # Check if it equals LLVM_BC_TYPE or LLVM_OBJ_TYPE
-    if(NOT "${target_type}" STREQUAL "${LLVM_BC_TYPE}" AND
-        NOT "${target_type}" STREQUAL "${LLVM_OBJ_TYPE}")
-        # Property matches LLVM_BC_TYPE or LLVM_OBJ_TYPE
-        message(FATAL_ERROR "Target ${DEP_TRGT} is not of type LLVM_BC"
-            " or LLVM_OBJ - cannot compile executable"
-            " - it is of type ${target_type}")
-    endif()
 
-    # only one target can be generated into an executable so we don't need to
-    # have a list of global properties
+    foreach(dep_trgt ${DEP_TRGTS})
+        get_property(target_type TARGET ${dep_trgt} PROPERTY LLVM_TYPE)
+        # Check if it equals LLVM_BC_TYPE or LLVM_OBJ_TYPE
+        if(NOT "${target_type}" STREQUAL "${LLVM_BC_TYPE}" AND
+            NOT "${target_type}" STREQUAL "${LLVM_OBJ_TYPE}")
+            # Property matches LLVM_BC_TYPE or LLVM_OBJ_TYPE
+            message(FATAL_ERROR "Target ${dep_trgt} is not of type LLVM_BC"
+                " or LLVM_OBJ - cannot compile executable"
+                " - it is of type ${target_type}")
+        endif()
+    endforeach()
+
+
+    # setup global lists to store the properties of all targets
+    # list of all the source files, in this case, the IR files
+    set(GLOBAL_SOURCES "")
+    # The generated BC file
+    set(OUTPUT_LLVM_BC_FILE_PATH "")
+
+    # list of all the library properties
+    # list of all the library paths, i.e. -L<lib-path>
+    set(GLOBAL_LIB_LINKING_LIB_PATHS "")
+    # list of all the libraries, i.e. -l<lib-path>
+    set(GLOBAL_LIB_LINKING_LIBS "")
+    # list of all the library includes, i.e. -I<lib-path>
+    set(GLOBAL_LIB_INCLUDES "")
+    # list of all the library options, i.e. -fopenmp
+    set(GLOBAL_LIB_OPTIONS "")
+
+    # list of all the include directories
+    set(GLOBAL_INCLUDES "")
+    # list of all the compile definitions
+    set(GLOBAL_DEFINITION "")
+
+    # list of all the compile options
+    set(GLOBAL_COMPILE_OPTIONS "")
+    # list of all the compile flags
+    set(GLOBAL_COMPILE_FLAGS "")
+
+    # list of the language flags, i.e. -std=c++11, -O3
+    set(GLOBAL_C_FLAGS "")
+    set(GLOBAL_CXX_FLAGS "")
+    set(GLOBAL_Fortran_FLAGS "")
 
     set(WORK_DIR "${CMAKE_CURRENT_BINARY_DIR}/${LLVM_EXECUTABLE_OUTPUT_DIR}/${TRGT}")
     if(NOT EXISTS "${WORK_DIR}")
@@ -955,37 +987,89 @@ function(llvm_compile_into_executable_target)
     set(OUTPUT_FILENAME "${TRGT}")
     set(OUTPUT_LLVM_EXE_FILE_PATH "${WORK_DIR}/${OUTPUT_FILENAME}")
 
-    get_property(INPUT_FILE TARGET ${DEP_TRGT} PROPERTY LLVM_GENERATED_FILES)
-    get_property(INCLUDE TARGET ${DEP_TRGT} PROPERTY INCLUDES)
-    get_property(DEFINITION TARGET ${DEP_TRGT} PROPERTY DEFINITION)
-    get_property(COMPILE_OPTIONS TARGET ${DEP_TRGT} PROPERTY COMPILE_OPTIONS)
-    get_property(COMPILE_FLAGS TARGET ${DEP_TRGT} PROPERTY COMPILE_FLAGS)
-    get_property(C_FLAGS TARGET ${DEP_TRGT} PROPERTY C_FLAGS)
-    get_property(CXX_FLAGS TARGET ${DEP_TRGT} PROPERTY CXX_FLAGS)
-    get_property(Fortran_FLAGS TARGET ${DEP_TRGT} PROPERTY Fortran_FLAGS)
-    get_property(LIB_LINKING_LIB_PATHS TARGET ${DEP_TRGT} 
-        PROPERTY LIB_LINKING_LIB_PATHS)
-    get_property(LIB_LINKING_LIBS TARGET ${DEP_TRGT}
-        PROPERTY LIB_LINKING_LIBS)
-    get_property(LIB_INCLUDES TARGET ${DEP_TRGT} PROPERTY LIB_INCLUDES)
-    get_property(LIB_OPTIONS TARGET ${DEP_TRGT} PROPERTY LIB_OPTIONS)
+    foreach(dep_trgt ${DEP_TRGTS})
+        get_property(LOCAL_BC_FILES TARGET ${dep_trgt} 
+            PROPERTY LLVM_GENERATED_FILES)
+        get_property(LOCAL_INCLUDES TARGET ${dep_trgt} PROPERTY INCLUDES)
+        get_property(LOCAL_DEFINITION TARGET ${dep_trgt} PROPERTY DEFINITION)
+        get_property(LOCAL_COMPILE_OPTIONS TARGET ${dep_trgt} 
+            PROPERTY COMPILE_OPTIONS)
+        get_property(LOCAL_COMPILE_FLAGS TARGET ${dep_trgt} 
+            PROPERTY COMPILE_FLAGS)
+        get_property(LOCAL_C_FLAGS TARGET ${dep_trgt} PROPERTY C_FLAGS)
+        get_property(LOCAL_CXX_FLAGS TARGET ${dep_trgt} PROPERTY CXX_FLAGS)
+        get_property(LOCAL_Fortran_FLAGS TARGET ${dep_trgt} 
+            PROPERTY Fortran_FLAGS)
+        get_property(LOCAL_LIB_LINKING_LIB_PATHS TARGET ${dep_trgt} 
+            PROPERTY LIB_LINKING_LIB_PATHS)
+        get_property(LOCAL_LIB_LINKING_LIBS TARGET ${dep_trgt}
+            PROPERTY LIB_LINKING_LIBS)
+        get_property(LOCAL_LIB_INCLUDES TARGET ${dep_trgt} 
+            PROPERTY LIB_INCLUDES)
+        get_property(LOCAL_LIB_OPTIONS TARGET ${dep_trgt} PROPERTY LIB_OPTIONS)
+
+        catuniq(GLOBAL_SOURCES ${LOCAL_BC_FILES} ${GLOBAL_SOURCES})
+        catuniq(GLOBAL_INCLUDES ${LOCAL_INCLUDES} ${GLOBAL_INCLUDES})
+        catuniq(GLOBAL_DEFINITION ${LOCAL_DEFINITION} ${GLOBAL_DEFINITION})
+        catuniq(GLOBAL_COMPILE_OPTIONS ${LOCAL_COMPILE_OPTIONS} 
+            ${GLOBAL_COMPILE_OPTIONS})
+        catuniq(GLOBAL_COMPILE_FLAGS ${LOCAL_COMPILE_FLAGS} 
+            ${GLOBAL_COMPILE_FLAGS})
+        catuniq(GLOBAL_C_FLAGS ${LOCAL_C_FLAGS} ${GLOBAL_C_FLAGS})
+        catuniq(GLOBAL_CXX_FLAGS ${LOCAL_CXX_FLAGS} ${GLOBAL_CXX_FLAGS})
+        catuniq(GLOBAL_Fortran_FLAGS ${LOCAL_Fortran_FLAGS} 
+            ${GLOBAL_Fortran_FLAGS})
+        catuniq(GLOBAL_LIB_LINKING_LIB_PATHS ${LOCAL_LIB_LINKING_LIB_PATHS} 
+            ${GLOBAL_LIB_LINKING_LIB_PATHS})
+        catuniq(GLOBAL_LIB_LINKING_LIBS ${LOCAL_LIB_LINKING_LIBS}
+            ${GLOBAL_LIB_LINKING_LIBS})
+        catuniq(GLOBAL_LIB_INCLUDES ${LOCAL_LIB_INCLUDES} 
+            ${GLOBAL_LIB_INCLUDES})
+        catuniq(GLOBAL_LIB_OPTIONS ${LOCAL_LIB_OPTIONS} ${GLOBAL_LIB_OPTIONS})
+    endforeach()
+
+    list(REMOVE_DUPLICATES GLOBAL_INCLUDES)
+    list(REMOVE_DUPLICATES GLOBAL_DEFINITION)
+    list(REMOVE_DUPLICATES GLOBAL_COMPILE_OPTIONS)
+    list(REMOVE_DUPLICATES GLOBAL_COMPILE_FLAGS)
+    list(REMOVE_DUPLICATES GLOBAL_C_FLAGS)
+    list(REMOVE_DUPLICATES GLOBAL_CXX_FLAGS)
+    list(REMOVE_DUPLICATES GLOBAL_Fortran_FLAGS)
+    list(REMOVE_DUPLICATES GLOBAL_LIB_LINKING_LIB_PATHS)
+    list(REMOVE_DUPLICATES GLOBAL_LIB_LINKING_LIBS)
+    list(REMOVE_DUPLICATES GLOBAL_LIB_INCLUDES)
+    list(REMOVE_DUPLICATES GLOBAL_LIB_OPTIONS)
+
+    message(STATUS "GLOBAL_INCLUDES: ${GLOBAL_INCLUDES}")
+    message(STATUS "GLOBAL_DEFINITION: ${GLOBAL_DEFINITION}")
+    message(STATUS "GLOBAL_COMPILE_OPTIONS: ${GLOBAL_COMPILE_OPTIONS}")
+    message(STATUS "GLOBAL_COMPILE_FLAGS: ${GLOBAL_COMPILE_FLAGS}")
+    message(STATUS "GLOBAL_C_FLAGS: ${GLOBAL_C_FLAGS}")
+    message(STATUS "GLOBAL_CXX_FLAGS: ${GLOBAL_CXX_FLAGS}")
+    message(STATUS "GLOBAL_Fortran_FLAGS: ${GLOBAL_Fortran_FLAGS}")
+    message(STATUS "GLOBAL_LIB_LINKING_LIB_PATHS: "
+                                "${GLOBAL_LIB_LINKING_LIB_PATHS}")
+    message(STATUS "GLOBAL_LIB_LINKING_LIBS: ${GLOBAL_LIB_LINKING_LIBS}")
+    message(STATUS "GLOBAL_LIB_INCLUDES: ${GLOBAL_LIB_INCLUDES}")
+    message(STATUS "GLOBAL_LIB_OPTIONS: ${GLOBAL_LIB_OPTIONS}")
     
     set(FILE_COMPILE_CMD ${${LLVM_FINAL_COMPILER_LANG}_FLAGS} 
-        ${COMPILE_OPTIONS} ${COMPILE_FLAGS} ${LIB_OPTIONS} ${ADD_FLAGS}
-        ${LIB_LINKING_LIB_PATHS} ${ADD_LIB_PATHS}
-        -Wl,--start-group ${LIB_LINKING_LIBS} ${ADD_LIBS} -Wl,--end-group
-        )
+        ${GLOBAL_COMPILE_OPTIONS} ${GLOBAL_COMPILE_FLAGS} ${GLOBAL_LIB_OPTIONS} 
+        ${ADD_FLAGS}
+        ${GLOBAL_LIB_LINKING_LIB_PATHS} ${ADD_LIB_PATHS}
+        -Wl,--start-group ${GLOBAL_LIB_LINKING_LIBS} ${ADD_LIBS} -Wl,--end-group
+    )
     
     # add custom command to compile the executable
     add_custom_command(OUTPUT ${OUTPUT_LLVM_EXE_FILE_PATH}
-        COMMAND ${LLVM_FINAL_COMPILER} ${INPUT_FILE} ${FILE_COMPILE_CMD}
+        COMMAND ${LLVM_FINAL_COMPILER} ${GLOBAL_SOURCES} ${FILE_COMPILE_CMD}
             -o ${OUTPUT_LLVM_EXE_FILE_PATH} ${ADD_CMDS}
         DEPENDS ${INPUT_FILE}
         COMMENT "Compiling executable from ${INPUT_FILE} with command: ${LLVM_FINAL_COMPILER} ${FILE_COMPILE_CMD} ${INPUT_FILE} -o ${OUTPUT_LLVM_EXE_FILE_PATH} ${ADD_CMDS}"
             VERBATIM)
     
     # add custom target to generate the executable
-    add_custom_target(${TRGT} ALL DEPENDS ${OUTPUT_LLVM_EXE_FILE_PATH} ${DEP_TRGT})
+    add_custom_target(${TRGT} ALL DEPENDS ${OUTPUT_LLVM_EXE_FILE_PATH} ${DEP_TRGTS})
     # set the LLVM_TYPE to LLVM_EXE_TYPE
     set_property(TARGET ${TRGT} PROPERTY LLVM_TYPE ${LLVM_EXE_TYPE})
     set_property(TARGET ${TRGT} PROPERTY LLVM_SOURCE_FILES ${INPUT_FILE})
@@ -993,19 +1077,20 @@ function(llvm_compile_into_executable_target)
     set_property(TARGET ${TRGT} 
         PROPERTY LLVM_GENERATED_FILES ${OUTPUT_LLVM_EXE_FILE_PATH})
     # setup the properties to carry forward
-    set_property(TARGET ${TRGT} PROPERTY INCLUDES ${INCLUDE})
-    set_property(TARGET ${TRGT} PROPERTY DEFINITION ${DEFINITION})
-    set_property(TARGET ${TRGT} PROPERTY COMPILE_OPTIONS ${COMPILE_OPTIONS})
-    set_property(TARGET ${TRGT} PROPERTY COMPILE_FLAGS ${COMPILE_FLAGS})
-    set_property(TARGET ${TRGT} PROPERTY C_FLAGS ${C_FLAGS})
-    set_property(TARGET ${TRGT} PROPERTY CXX_FLAGS ${CXX_FLAGS})
-    set_property(TARGET ${TRGT} PROPERTY Fortran_FLAGS ${Fortran_FLAGS})
+    set_property(TARGET ${TRGT} PROPERTY INCLUDES ${GLOBAL_INCLUDES})
+    set_property(TARGET ${TRGT} PROPERTY DEFINITION ${GLOBAL_DEFINITION})
+    set_property(TARGET ${TRGT} 
+        PROPERTY COMPILE_OPTIONS ${GLOBAL_COMPILE_OPTIONS})
+    set_property(TARGET ${TRGT} PROPERTY COMPILE_FLAGS ${GLOBAL_COMPILE_FLAGS})
+    set_property(TARGET ${TRGT} PROPERTY C_FLAGS ${GLOBAL_C_FLAGS})
+    set_property(TARGET ${TRGT} PROPERTY CXX_FLAGS ${GLOBAL_CXX_FLAGS})
+    set_property(TARGET ${TRGT} PROPERTY Fortran_FLAGS ${GLOBAL_Fortran_FLAGS})
     set_property(TARGET ${TRGT} PROPERTY LIB_LINKING_LIB_PATHS 
-        ${LIB_LINKING_LIB_PATHS})
+        ${GLOBAL_LIB_LINKING_LIB_PATHS})
     set_property(TARGET ${TRGT} PROPERTY LIB_LINKING_LIBS
-        ${LIB_LINKING_LIBS})
-    set_property(TARGET ${TRGT} PROPERTY LIB_INCLUDES ${LIB_INCLUDES})
-    set_property(TARGET ${TRGT} PROPERTY LIB_OPTIONS ${LIB_OPTIONS})
+        ${GLOBAL_LIB_LINKING_LIBS})
+    set_property(TARGET ${TRGT} PROPERTY LIB_INCLUDES ${GLOBAL_LIB_INCLUDES})
+    set_property(TARGET ${TRGT} PROPERTY LIB_OPTIONS ${GLOBAL_LIB_OPTIONS})
 
 endfunction()
 
@@ -1747,4 +1832,250 @@ function(get_all_libraries_target)
     message(STATUS "all library targets: ${temp_library_target_list}")
 
     set(${TARGET_LIST} ${temp_library_target_list} PARENT_SCOPE)
+endfunction()
+
+function(llvm_extract_functions_to_bc)
+    # List of options without values (boolean flags)
+    set(options)
+
+    # Arguments that take exactly one value
+    # TARGET: Name of the output BC target to be optimized
+    set(oneValueArgs TARGET DEPEND_TARGET)
+
+    # Arguments that can take multiple values
+    # DEPEND_TARGETS: List of CMake targets to generate BC from
+    # ADDITIONAL_COMMANDS: Extra compiler flags to be appended to each compile 
+    # command
+    set(multiValueArgs 
+        FUNCTIONS
+    )
+
+    # Parse the function arguments
+    cmake_parse_arguments(LLVM_EXTRACT_FUNCTIONS_TO_BC 
+        "${options}" 
+        "${oneValueArgs}" 
+        "${multiValueArgs}" 
+        ${ARGN}
+    )
+
+    set(TRGT ${LLVM_EXTRACT_FUNCTIONS_TO_BC_TARGET})
+    set(DEP_TRGT ${LLVM_EXTRACT_FUNCTIONS_TO_BC_DEPEND_TARGET})
+    set(FUNCTIONS ${LLVM_EXTRACT_FUNCTIONS_TO_BC_FUNCTIONS})
+
+    if(NOT TRGT)
+        message(FATAL_ERROR "llvm_extract_functions_to_bc: missing TARGET option")
+    endif()
+
+    if(NOT DEP_TRGT)
+        message(FATAL_ERROR 
+            "llvm_extract_functions_to_bc: missing DEPEND_TARGET option")
+    endif()
+
+    if(NOT FUNCTIONS)
+        message(FATAL_ERROR 
+            "llvm_extract_functions_to_bc: missing FUNCTIONS option")
+    endif()
+
+    # check if the necessary properties are set
+    # for this function, we need the LLVM_TYPE property to be LLVM_BC_TYPE
+    get_property(target_type TARGET ${DEP_TRGT} PROPERTY LLVM_TYPE)
+    # Check if it equals LLVM_BC_TYPE
+    if(NOT "${target_type}" STREQUAL "${LLVM_BC_TYPE}")
+        # Property matches LLVM_BC_TYPE
+        message(FATAL_ERROR "Target ${DEP_TRGT} is not of type LLVM_BC"
+            " - cannot optimize BC file"
+            " - it is of type ${target_type}")
+    endif()
+
+    # only one target can be generated into an optimized BC file so we don't 
+    # need to have a list of global properties
+
+    set(WORK_DIR "${CMAKE_CURRENT_BINARY_DIR}/${LLVM_BC_OUTPUT_DIR}/${TRGT}")
+    if(NOT EXISTS "${WORK_DIR}")
+        file(MAKE_DIRECTORY "${WORK_DIR}")
+        if(NOT EXISTS "${WORK_DIR}")
+            message(FATAL_ERROR 
+                "[llvm_extract_functions_to_bc]: "
+                    "failed to create directory ${WORK_DIR}"
+            )
+        endif()
+    endif()
+
+    set(OUTPUT_FILENAME "${TRGT}.${LLVM_BC_FILE_SUFFIX}")
+    set(OUTPUT_LLVM_BC_FILE_PATH "${WORK_DIR}/${OUTPUT_FILENAME}")
+
+    get_property(INPUT_FILE TARGET ${DEP_TRGT} PROPERTY LLVM_GENERATED_FILES)
+    get_property(INCLUDE TARGET ${DEP_TRGT} PROPERTY INCLUDES)
+    get_property(DEFINITION TARGET ${DEP_TRGT} PROPERTY DEFINITION)
+    get_property(COMPILE_OPTIONS TARGET ${DEP_TRGT} PROPERTY COMPILE_OPTIONS)
+    get_property(COMPILE_FLAGS TARGET ${DEP_TRGT} PROPERTY COMPILE_FLAGS)
+    get_property(C_FLAGS TARGET ${DEP_TRGT} PROPERTY C_FLAGS)
+    get_property(CXX_FLAGS TARGET ${DEP_TRGT} PROPERTY CXX_FLAGS)
+    get_property(Fortran_FLAGS TARGET ${DEP_TRGT} PROPERTY Fortran_FLAGS)
+    get_property(LIB_LINKING_LIB_PATHS TARGET ${DEP_TRGT} 
+        PROPERTY LIB_LINKING_LIB_PATHS)
+    get_property(LIB_LINKING_LIBS TARGET ${DEP_TRGT}
+    PROPERTY LIB_LINKING_LIBS)
+    get_property(LIB_INCLUDES TARGET ${DEP_TRGT} PROPERTY LIB_INCLUDES)
+    get_property(LIB_OPTIONS TARGET ${DEP_TRGT} PROPERTY LIB_OPTIONS)
+
+    set(FUNCTION_CMD "")
+    foreach(func ${FUNCTIONS})
+        list(APPEND FUNCTION_CMD "--func=${func}")
+    endforeach()
+
+    add_custom_command(OUTPUT ${OUTPUT_LLVM_BC_FILE_PATH}
+        COMMAND ${LLVM_EXTRACTER} ${INPUT_FILE} ${FUNCTION_CMD} --recursive
+            -o ${OUTPUT_LLVM_BC_FILE_PATH}
+        DEPENDS ${INPUT_FILE} ${DEP_TRGT}
+        COMMENT "Extracting functions ${FUNCTION_CMD} from ${INPUT_FILE} with command: ${LLVM_EXTRACTER} ${INPUT_FILE} --func=${FUNCTIONS} --recursive -o ${OUTPUT_LLVM_BC_FILE_PATH}"
+        VERBATIM
+    )
+
+    # add custom target to generate the optimized BC file
+    add_custom_target(${TRGT} ALL DEPENDS ${OUTPUT_LLVM_BC_FILE_PATH} ${DEP_TRGT})
+    # set the LLVM_TYPE to LLVM_BC_TYPE
+    set_property(TARGET ${TRGT} PROPERTY LLVM_TYPE ${LLVM_BC_TYPE})
+    set_property(TARGET ${TRGT} PROPERTY LLVM_SOURCE_FILES ${INPUT_FILE})
+    set_property(TARGET ${TRGT} PROPERTY LLVM_CUSTOM_OUTPUT_DIR ${WORK_DIR})
+    set_property(TARGET ${TRGT} 
+        PROPERTY LLVM_GENERATED_FILES ${OUTPUT_LLVM_BC_FILE_PATH})
+    
+    # setup the properties to carry forward
+    set_property(TARGET ${TRGT} PROPERTY INCLUDES ${INCLUDE})
+    set_property(TARGET ${TRGT} PROPERTY DEFINITION ${DEFINITION})
+    set_property(TARGET ${TRGT} PROPERTY COMPILE_OPTIONS ${COMPILE_OPTIONS})
+    set_property(TARGET ${TRGT} PROPERTY COMPILE_FLAGS ${COMPILE_FLAGS})
+    set_property(TARGET ${TRGT} PROPERTY C_FLAGS ${C_FLAGS})
+    set_property(TARGET ${TRGT} PROPERTY CXX_FLAGS ${CXX_FLAGS})
+    set_property(TARGET ${TRGT} PROPERTY Fortran_FLAGS ${Fortran_FLAGS})
+    set_property(TARGET ${TRGT} PROPERTY LIB_LINKING_LIB_PATHS 
+        ${LIB_LINKING_LIB_PATHS})
+    set_property(TARGET ${TRGT} PROPERTY LIB_LINKING_LIBS
+        ${LIB_LINKING_LIBS})
+    set_property(TARGET ${TRGT} PROPERTY LIB_INCLUDES ${LIB_INCLUDES})
+    set_property(TARGET ${TRGT} PROPERTY LIB_OPTIONS ${LIB_OPTIONS})
+endfunction()
+
+function(llvm_delete_functions_from_bc)
+    # List of options without values (boolean flags)
+    set(options)
+
+    # Arguments that take exactly one value
+    # TARGET: Name of the output BC target to be optimized
+    set(oneValueArgs TARGET DEPEND_TARGET)
+
+    # Arguments that can take multiple values
+    # DEPEND_TARGETS: List of CMake targets to generate BC from
+    # ADDITIONAL_COMMANDS: Extra compiler flags to be appended to each compile 
+    # command
+    set(multiValueArgs 
+        FUNCTIONS
+    )
+
+    # Parse the function arguments
+    cmake_parse_arguments(LLVM_DELETE_FUNCTIONS_FROM_BC
+        "${options}" 
+        "${oneValueArgs}" 
+        "${multiValueArgs}" 
+        ${ARGN}
+    )
+
+    set(TRGT ${LLVM_DELETE_FUNCTIONS_FROM_BC_TARGET})
+    set(DEP_TRGT ${LLVM_DELETE_FUNCTIONS_FROM_BC_DEPEND_TARGET})
+    set(FUNCTIONS ${LLVM_DELETE_FUNCTIONS_FROM_BC_FUNCTIONS})
+
+    if(NOT TRGT)
+        message(FATAL_ERROR "llvm_delete_functions_from_bc: missing TARGET option")
+    endif()
+
+    if(NOT DEP_TRGT)
+        message(FATAL_ERROR 
+            "llvm_delete_functions_from_bc: missing DEPEND_TARGET option")
+    endif()
+
+    if(NOT FUNCTIONS)
+        message(FATAL_ERROR 
+            "llvm_delete_functions_from_bc: missing FUNCTIONS option")
+    endif()
+
+    # check if the necessary properties are set
+    # for this function, we need the LLVM_TYPE property to be LLVM_BC_TYPE
+    get_property(target_type TARGET ${DEP_TRGT} PROPERTY LLVM_TYPE)
+    # Check if it equals LLVM_BC_TYPE
+    if(NOT "${target_type}" STREQUAL "${LLVM_BC_TYPE}")
+        # Property matches LLVM_BC_TYPE
+        message(FATAL_ERROR "Target ${DEP_TRGT} is not of type LLVM_BC"
+            " - cannot optimize BC file"
+            " - it is of type ${target_type}")
+    endif()
+
+    # only one target can be generated into an optimized BC file so we don't 
+    # need to have a list of global properties
+
+    set(WORK_DIR "${CMAKE_CURRENT_BINARY_DIR}/${LLVM_BC_OUTPUT_DIR}/${TRGT}")
+    if(NOT EXISTS "${WORK_DIR}")
+        file(MAKE_DIRECTORY "${WORK_DIR}")
+        if(NOT EXISTS "${WORK_DIR}")
+            message(FATAL_ERROR 
+                "[llvm_delete_functions_from_bc]: "
+                    "failed to create directory ${WORK_DIR}"
+            )
+        endif()
+    endif()
+
+    set(OUTPUT_FILENAME "${TRGT}.${LLVM_BC_FILE_SUFFIX}")
+    set(OUTPUT_LLVM_BC_FILE_PATH "${WORK_DIR}/${OUTPUT_FILENAME}")
+
+    get_property(INPUT_FILE TARGET ${DEP_TRGT} PROPERTY LLVM_GENERATED_FILES)
+    get_property(INCLUDE TARGET ${DEP_TRGT} PROPERTY INCLUDES)
+    get_property(DEFINITION TARGET ${DEP_TRGT} PROPERTY DEFINITION)
+    get_property(COMPILE_OPTIONS TARGET ${DEP_TRGT} PROPERTY COMPILE_OPTIONS)
+    get_property(COMPILE_FLAGS TARGET ${DEP_TRGT} PROPERTY COMPILE_FLAGS)
+    get_property(C_FLAGS TARGET ${DEP_TRGT} PROPERTY C_FLAGS)
+    get_property(CXX_FLAGS TARGET ${DEP_TRGT} PROPERTY CXX_FLAGS)
+    get_property(Fortran_FLAGS TARGET ${DEP_TRGT} PROPERTY Fortran_FLAGS)
+    get_property(LIB_LINKING_LIB_PATHS TARGET ${DEP_TRGT} 
+        PROPERTY LIB_LINKING_LIB_PATHS)
+    get_property(LIB_LINKING_LIBS TARGET ${DEP_TRGT}
+    PROPERTY LIB_LINKING_LIBS)
+    get_property(LIB_INCLUDES TARGET ${DEP_TRGT} PROPERTY LIB_INCLUDES)
+    get_property(LIB_OPTIONS TARGET ${DEP_TRGT} PROPERTY LIB_OPTIONS)
+
+    set(FUNCTION_CMD "")
+    foreach(func ${FUNCTIONS})
+        list(APPEND FUNCTION_CMD "--func=${func}")
+    endforeach()
+
+    add_custom_command(OUTPUT ${OUTPUT_LLVM_BC_FILE_PATH}
+        COMMAND ${LLVM_EXTRACTER} ${INPUT_FILE} ${FUNCTION_CMD} --delete
+            -o ${OUTPUT_LLVM_BC_FILE_PATH}
+        DEPENDS ${INPUT_FILE} ${DEP_TRGT}
+        COMMENT "Deleting functions ${FUNCTION_CMD} from ${INPUT_FILE} with command: ${LLVM_EXTRACTER} ${INPUT_FILE} ${FUNCTION_CMD} --delete -o ${OUTPUT_LLVM_BC_FILE_PATH}"
+        VERBATIM
+    )
+
+    # add custom target to generate the optimized BC file
+    add_custom_target(${TRGT} ALL DEPENDS ${OUTPUT_LLVM_BC_FILE_PATH} ${DEP_TRGT})
+    # set the LLVM_TYPE to LLVM_BC_TYPE
+    set_property(TARGET ${TRGT} PROPERTY LLVM_TYPE ${LLVM_BC_TYPE})
+    set_property(TARGET ${TRGT} PROPERTY LLVM_SOURCE_FILES ${INPUT_FILE})
+    set_property(TARGET ${TRGT} PROPERTY LLVM_CUSTOM_OUTPUT_DIR ${WORK_DIR})
+    set_property(TARGET ${TRGT} 
+        PROPERTY LLVM_GENERATED_FILES ${OUTPUT_LLVM_BC_FILE_PATH})
+    
+    # setup the properties to carry forward
+    set_property(TARGET ${TRGT} PROPERTY INCLUDES ${INCLUDE})
+    set_property(TARGET ${TRGT} PROPERTY DEFINITION ${DEFINITION})
+    set_property(TARGET ${TRGT} PROPERTY COMPILE_OPTIONS ${COMPILE_OPTIONS})
+    set_property(TARGET ${TRGT} PROPERTY COMPILE_FLAGS ${COMPILE_FLAGS})
+    set_property(TARGET ${TRGT} PROPERTY C_FLAGS ${C_FLAGS})
+    set_property(TARGET ${TRGT} PROPERTY CXX_FLAGS ${CXX_FLAGS})
+    set_property(TARGET ${TRGT} PROPERTY Fortran_FLAGS ${Fortran_FLAGS})
+    set_property(TARGET ${TRGT} PROPERTY LIB_LINKING_LIB_PATHS 
+        ${LIB_LINKING_LIB_PATHS})
+    set_property(TARGET ${TRGT} PROPERTY LIB_LINKING_LIBS
+        ${LIB_LINKING_LIBS})
+    set_property(TARGET ${TRGT} PROPERTY LIB_INCLUDES ${LIB_INCLUDES})
+    set_property(TARGET ${TRGT} PROPERTY LIB_OPTIONS ${LIB_OPTIONS})
 endfunction()
