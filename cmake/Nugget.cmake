@@ -252,6 +252,7 @@ function(nugget_compile_exe)
         EXTRA_LIBS   
         LLC_CMD
         EXTRACT_FUNCTIONS
+        FINAL_BB_FILE_PATHS
     )
     cmake_parse_arguments(
         NUGGET_COMPILE_EXE
@@ -268,6 +269,7 @@ function(nugget_compile_exe)
     set(LLC_CMD ${NUGGET_COMPILE_EXE_LLC_CMD})
     set(EXTRACT_FUNCTIONS ${NUGGET_COMPILE_EXE_EXTRACT_FUNCTIONS})
     set(SHRUNK_BC ${NUGGET_COMPILE_EXE_SHRUNK_BC})
+    set(FINAL_BB_FILE_PATHS ${NUGGET_COMPILE_EXE_FINAL_BB_FILE_PATHS})
 
     if (NOT TRGT)
         message(FATAL_ERROR "TARGET not set")
@@ -283,50 +285,63 @@ function(nugget_compile_exe)
     endif()
 
     message(STATUS "If EXTRACT_HOOK: ${EXTRACT_HOOK}")
-
-    if(BC_FILE_PATH)
-        create_bc_target_without_rebuild(
-            TARGET ${TRGT}_bc
-            BC_FILE_PATH ${BB_FILE_PATH}
-            DEPEND_TARGETS ${DEP_TRGTS}
-        )
-        set(BC_TARGET ${TRGT}_bc)
-    else()
-        set(count 0)
-        foreach(DEP_TRGT ${DEP_TRGTS})
-            math(EXPR count "${count} + 1")
-        endforeach()
-        if(count GREATER 1)
-            message(FATAL_ERROR "BB_FILE_PATH not set for DEP_TRGTS has more than one target")
-        endif()
-        set(BC_TARGET ${DEP_TRGTS})
-    endif()
-
-    if(EXTRACT_FUNCTIONS) 
-        llvm_extract_functions_to_bc(
-            TARGET ${TRGT}_hook_bc
-            DEPEND_TARGET ${BC_TARGET}
-            FUNCTIONS ${EXTRACT_FUNCTIONS}
-        )
-        llvm_delete_functions_from_bc(
-            TARGET ${TRGT}_source_bc
-            DEPEND_TARGET ${BC_TARGET}
-            FUNCTIONS ${EXTRACT_FUNCTIONS}
-        )
-        set(BB_TARGET ${TRGT}_source_bc ${TRGT}_hook_bc)
-    endif()
-
-    if(SHRUNK_BC)
-        set(NEW_LIST "")
-        foreach(target ${BB_TARGET})
-            apply_opt_to_bc_target(
-                TARGET ${target}_shrunk_bc
-                DEPEND_TARGET ${target}
-                OPT_COMMAND -Os
+    if(FINAL_BB_FILE_PATHS)
+        set(BB_TARGET "")
+        foreach(bb_file_path ${FINAL_BB_FILE_PATHS})
+            cmake_path(GET bb_file_path FILENAME bb_file_name)
+            create_bc_target_without_rebuild(
+                TARGET ${bb_file_name}_bc
+                BC_FILE_PATH ${bb_file_path}
+                DEPEND_TARGETS ${DEP_TRGTS}
             )
-            list(APPEND NEW_LIST ${target}_shrunk_bc)
+            list(APPEND BB_TARGET ${bb_file_name}_bc)
         endforeach()
-        set(BB_TARGET ${NEW_LIST})
+    else()
+        if(BC_FILE_PATH)
+            create_bc_target_without_rebuild(
+                TARGET ${TRGT}_bc
+                BC_FILE_PATH ${BB_FILE_PATH}
+                DEPEND_TARGETS ${DEP_TRGTS}
+            )
+            set(BC_TARGET ${TRGT}_bc)
+        else()
+            set(count 0)
+            foreach(DEP_TRGT ${DEP_TRGTS})
+                math(EXPR count "${count} + 1")
+            endforeach()
+            if(count GREATER 1)
+                message(FATAL_ERROR "BB_FILE_PATH not set for DEP_TRGTS has more than one target")
+            endif()
+            set(BC_TARGET ${DEP_TRGTS})
+        endif()
+
+        if(EXTRACT_FUNCTIONS) 
+            llvm_extract_functions_to_bc(
+                TARGET ${TRGT}_hook_bc
+                DEPEND_TARGET ${BC_TARGET}
+                FUNCTIONS ${EXTRACT_FUNCTIONS}
+            )
+            llvm_delete_functions_from_bc(
+                TARGET ${TRGT}_source_bc
+                DEPEND_TARGET ${BC_TARGET}
+                FUNCTIONS ${EXTRACT_FUNCTIONS}
+            )
+            set(BB_TARGET ${TRGT}_source_bc ${TRGT}_hook_bc)
+        endif()
+
+        if(SHRUNK_BC)
+            set(NEW_LIST "")
+            foreach(target ${BB_TARGET})
+                apply_opt_to_bc_target(
+                    TARGET ${target}_shrunk_bc
+                    DEPEND_TARGET ${target}
+                    OPT_COMMAND -Os
+                )
+                list(APPEND NEW_LIST ${target}_shrunk_bc)
+            endforeach()
+            set(BB_TARGET ${NEW_LIST})
+        endif()
+
     endif()
 
     if(LLC_CMD)
