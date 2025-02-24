@@ -286,7 +286,7 @@ function(nugget_compile_exe)
 
     message(STATUS "If EXTRACT_HOOK: ${EXTRACT_HOOK}")
     if(FINAL_BB_FILE_PATHS)
-        set(BB_TARGET "")
+        set(BC_TARGET "")
         foreach(bb_file_path ${FINAL_BB_FILE_PATHS})
             cmake_path(GET bb_file_path FILENAME bb_file_name)
             create_bc_target_without_rebuild(
@@ -294,7 +294,7 @@ function(nugget_compile_exe)
                 BC_FILE_PATH ${bb_file_path}
                 DEPEND_TARGETS ${DEP_TRGTS}
             )
-            list(APPEND BB_TARGET ${bb_file_name}_bc)
+            list(APPEND BC_TARGET ${bb_file_name}_bc)
         endforeach()
     else()
         if(BC_FILE_PATH)
@@ -326,12 +326,12 @@ function(nugget_compile_exe)
                 DEPEND_TARGET ${BC_TARGET}
                 FUNCTIONS ${EXTRACT_FUNCTIONS}
             )
-            set(BB_TARGET ${TRGT}_hook_bc ${TRGT}_source_bc)
+            set(BC_TARGET ${TRGT}_hook_bc ${TRGT}_source_bc)
         endif()
 
         if(SHRUNK_BC)
             set(NEW_LIST "")
-            foreach(target ${BB_TARGET})
+            foreach(target ${BC_TARGET})
                 apply_opt_to_bc_target(
                     TARGET ${target}_shrunk_bc
                     DEPEND_TARGET ${target}
@@ -339,14 +339,14 @@ function(nugget_compile_exe)
                 )
                 list(APPEND NEW_LIST ${target}_shrunk_bc)
             endforeach()
-            set(BB_TARGET ${NEW_LIST})
+            set(BC_TARGET ${NEW_LIST})
         endif()
 
     endif()
 
     if(LLC_CMD)
         set(OBJ_TARGET "")
-        foreach(target ${BB_TARGET})
+        foreach(target ${BC_TARGET})
             llvm_llc_into_obj_target(
                 TARGET ${target}_obj
                 DEPEND_TARGET ${target}
@@ -355,7 +355,7 @@ function(nugget_compile_exe)
             list(APPEND OBJ_TARGET ${target}_obj)
         endforeach()
     else()
-        set(OBJ_TARGET ${BB_TARGET})
+        set(OBJ_TARGET ${BC_TARGET})
     endif()
 
     llvm_compile_into_executable_target(
