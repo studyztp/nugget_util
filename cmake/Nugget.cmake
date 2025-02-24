@@ -243,9 +243,10 @@ endfunction()
 
 function(nugget_compile_exe)
     set(options)
-    set(oneValueArgs TARGET BB_FILE_PATH SHRUNK_BC)
+    set(oneValueArgs TARGET BB_FILE_PATH)
     set(multiValueArgs 
         DEPEND_TARGETS
+        ADDITIONAL_OPT
         EXTRA_FLAGS
         EXTRA_INCLUDES
         EXTRA_LIB_PATHS
@@ -268,7 +269,7 @@ function(nugget_compile_exe)
     set(BC_FILE_PATH ${NUGGET_COMPILE_EXE_BB_FILE_PATH})
     set(LLC_CMD ${NUGGET_COMPILE_EXE_LLC_CMD})
     set(EXTRACT_FUNCTIONS ${NUGGET_COMPILE_EXE_EXTRACT_FUNCTIONS})
-    set(SHRUNK_BC ${NUGGET_COMPILE_EXE_SHRUNK_BC})
+    set(ADDITIONAL_OPT ${NUGGET_COMPILE_EXE_ADDITIONAL_OPT})
     set(FINAL_BB_FILE_PATHS ${NUGGET_COMPILE_EXE_FINAL_BB_FILE_PATHS})
 
     if (NOT TRGT)
@@ -329,21 +330,20 @@ function(nugget_compile_exe)
             set(BC_TARGET ${TRGT}_hook_bc ${TRGT}_source_bc)
         endif()
 
-        if(SHRUNK_BC)
-            message(STATUS "Shrinking BC files")
-            message(STATUS "options: ${SHRUNK_BC}")
-            set(NEW_LIST "")
-            foreach(target ${BC_TARGET})
-                apply_opt_to_bc_target(
-                    TARGET ${target}_shrunk_bc
-                    DEPEND_TARGET ${target}
-                    OPT_COMMAND -O2
-                )
-                list(APPEND NEW_LIST ${target}_shrunk_bc)
-            endforeach()
-            set(BC_TARGET ${NEW_LIST})
-        endif()
+    endif()
 
+    if(ADDITIONAL_OPT)
+        message(STATUS "ADDITIONAL_OPT: ${ADDITIONAL_OPT}")
+        set(NEW_LIST "")
+        foreach(target ${BC_TARGET})
+            apply_opt_to_bc_target(
+                TARGET ${target}_add_opt_bc
+                DEPEND_TARGET ${target}
+                OPT_COMMAND ${ADDITIONAL_OPT}
+            )
+            list(APPEND NEW_LIST ${target}_add_opt_bc)
+        endforeach()
+        set(BC_TARGET ${NEW_LIST})
     endif()
 
     if(LLC_CMD)
