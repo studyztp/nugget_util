@@ -1,6 +1,10 @@
 # Helper CMake Utils
 
-Here contains all the CMake functions that can help to perform the Nugget methodology.# Nugget CMake Functions Documentation
+Here contains all the CMake functions that can help to perform the Nugget methodology.
+
+--- 
+
+# Nugget CMake Functions Documentation
 
 This document provides detailed information on the custom CMake functions used for LLVM IR generation, bitcode processing, optimization, and executable compilation. These functions help streamline the process of instrumenting and compiling code with LLVM utilities within a CMake-based build system.
 
@@ -8,7 +12,7 @@ This document provides detailed information on the custom CMake functions used f
 
 ## Table of Contents
 
-- [Bigger Table of Contents](#bigger-table-of-contents)
+- [Helper CMake Utils](#helper-cmake-utils)
 - [Nugget CMake Functions Documentation](#nugget-cmake-functions-documentation)
   - [Table of Contents](#table-of-contents)
   - [Prerequisites](#prerequisites)
@@ -18,23 +22,6 @@ This document provides detailed information on the custom CMake functions used f
     - [nugget\_nugget\_bc](#nugget_nugget_bc)
     - [nugget\_compile\_exe](#nugget_compile_exe)
   - [Integration Example](#integration-example)
-- [LLVMIRUtil Documentation](#llvmirutil-documentation)
-  - [Table of Contents](#table-of-contents-1)
-  - [Overview](#overview)
-  - [Prerequisites](#prerequisites-1)
-  - [Functions Overview](#functions-overview)
-    - [llvm\_generate\_ir\_target](#llvm_generate_ir_target)
-    - [llvm\_link\_ir\_into\_bc\_target](#llvm_link_ir_into_bc_target)
-    - [llvm\_link\_bc\_targets](#llvm_link_bc_targets)
-    - [apply\_opt\_to\_bc\_target](#apply_opt_to_bc_target)
-    - [llvm\_llc\_into\_obj\_target](#llvm_llc_into_obj_target)
-    - [llvm\_compile\_into\_executable\_target](#llvm_compile_into_executable_target)
-    - [llvm\_extract\_functions\_to\_bc](#llvm_extract_functions_to_bc)
-    - [llvm\_delete\_functions\_from\_bc](#llvm_delete_functions_from_bc)
-  - [Helper Functions](#helper-functions)
-  - [Usage Examples](#usage-examples)
-  - [Troubleshooting](#troubleshooting)
-  - [License](#license)
 
 ---
 
@@ -267,3 +254,4 @@ nugget_compile_exe(
     EXTRA_FLAGS "-O2"
 )
 ```
+
