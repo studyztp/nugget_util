@@ -200,6 +200,31 @@ def relative_bbv(bbv_list1: List[int], bbv_list2: List[int]) -> List[int]:
 def reverse_map(map):
     return {v: k for k, v in map.items()}
 
+def find_infrequent_bb(
+        csv: List[int], 
+        bbv: List[int],
+        threshold: int
+):
+    # Find the least count inside the grace period
+    least_count_index = -1
+    least_count = max(bbv)+1
+
+    for index, count_stamp in enumerate(csv):
+        if count_stamp >= threshold:
+            if bbv[index] < least_count:
+                least_count = bbv[index]
+                least_count_index = index
+    # if no count stamp is greater than the threshold,
+    # we take the maximum count stamp
+    # this happens when the region is shorter than the planned
+    # region length, for example, the last region
+    if least_count_index == -1:
+        least_count_index = \
+            csv.index(max(csv))
+        least_count = bbv[least_count_index]
+    
+    return least_count, least_count_index
+
 def form_all_markers(
         df: pd.DataFrame,
         bb_id_map: Dict[str, int], 
@@ -263,45 +288,38 @@ def form_all_markers(
                     start_bbv = previous_global_bbvs[start_rid].copy()
                     start_csv = form_count_stamp_for_a_region(df, start_rid, bb_id_map)
 
-                # Find max indices
-                warmup_max_idx = warmup_csv.index(max(warmup_csv))
-                start_max_idx = start_csv.index(max(start_csv))
-
                 # Calculate the relative BBV between the start and warmup
                 relative_start_bbv = relative_bbv(start_bbv, warmup_bbv)
 
                 # Calculate the relative BBV between the end and start
                 relative_end_bbv = relative_bbv(global_bbv, start_bbv)
 
-                # Find the least count inside the grace period
-                least_count_index = -1
-                least_count = max(relative_end_bbv)+1
+                # Find the least count for warmup marker
+                least_warmup_count, least_warmup_count_index = find_infrequent_bb(
+                    warmup_csv, warmup_bbv, threshold
+                )
+                
+                # Find the least count for start marker inside the grace period
+                least_start_count, least_start_count_index = find_infrequent_bb(
+                    start_csv, relative_start_bbv, threshold
+                )
 
-                for index, count_stamp in enumerate(end_csv):
-                    if count_stamp >= threshold:
-                        if relative_end_bbv[index] < least_count:
-                            least_count = relative_end_bbv[index]
-                            least_count_index = index
-                # if no count stamp is greater than the threshold,
-                # we take the maximum count stamp
-                # this happens when the region is shorter than the planned
-                # region length, for example, the last region
-                if least_count_index == -1:
-                    least_count_index = \
-                        end_csv.index(max(end_csv))
-                    least_count = relative_end_bbv[least_count_index]
+                # Find the least count for end marker inside the grace period
+                least_end_count, least_end_count_index = find_infrequent_bb(
+                    end_csv, relative_end_bbv, threshold
+                )
 
                 # Create marker with actual indices
-                warmup_bid = warmup_max_idx
-                warmup_count = warmup_bbv[warmup_bid]
+                warmup_bid = least_warmup_count_index
+                warmup_count = least_warmup_count
                 if warmup_count == 0:
                     warmup_bid = 0
-                start_bid = start_max_idx
-                start_count = relative_start_bbv[start_bid]
+                start_bid = least_start_count_index
+                start_count = least_start_count
                 if start_count == 0:
                     start_bid = 0
-                end_bid = least_count_index
-                end_count = relative_end_bbv[end_bid]
+                end_bid = least_end_count_index
+                end_count = least_end_count
 
                 new_marker = pd.DataFrame({
                     'region': [i],

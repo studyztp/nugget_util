@@ -101,6 +101,88 @@ function(nugget_bbv_profiling_bc)
 
 endfunction()
 
+function(nugget_naive_bc)
+    set(options)
+    set(oneValueArgs TARGET HOOK_TARGET SOURCE_BC_FILE_PATH HOOK_BC_FILE_PATH)
+    set(multiValueArgs 
+        DEPEND_TARGETS
+        EXTRA_FLAGS
+        EXTRA_INCLUDES
+        EXTRA_LIB_PATHS
+        EXTRA_LIBS   
+    )
+    cmake_parse_arguments(
+        NUGGET_NAIVE_BC 
+        "${options}" "${oneValueArgs}" "${multiValueArgs}" 
+        ${ARGN}
+    )
+    set(TRGT ${NUGGET_NAIVE_BC_TARGET})
+    set(DEP_TRGTS ${NUGGET_NAIVE_BC_DEPEND_TARGETS})
+    set(EXTRA_FLAGS ${NUGGET_NAIVE_BC_EXTRA_FLAGS})
+    set(EXTRA_INCLUDES ${NUGGET_NAIVE_BC_EXTRA_INCLUDES})
+    set(EXTRA_LIB_PATHS ${NUGGET_NAIVE_BC_EXTRA_LIB_PATHS})
+    set(EXTRA_LIBS ${NUGGET_NAIVE_BC_EXTRA_LIBS})
+    set(HOOK_TARGET ${NUGGET_NAIVE_BC_HOOK_TARGET})
+    set(SOURCE_BC_FILE_PATH ${NUGGET_NAIVE_BC_SOURCE_BC_FILE_PATH})
+    set(HOOK_BC_FILE_PATH ${NUGGET_NAIVE_BC_HOOK_BC_FILE_PATH})
+
+    if (NOT TRGT)
+        message(FATAL_ERROR "TARGET not set")
+    endif()
+    if (NOT DEP_TRGTS)
+        message(FATAL_ERROR "DEPEND_TARGETS not set")
+    endif()
+
+    if(SOURCE_BC_FILE_PATH)
+        create_bc_target_without_rebuild(
+            TARGET ${TRGT}_source_bc
+            BC_FILE_PATH ${SOURCE_BC_FILE_PATH}
+            DEPEND_TARGETS ${DEP_TRGTS}
+        )
+    else()
+        llvm_generate_ir_target(
+            TARGET ${TRGT}_source_ir
+            DEPEND_TARGETS ${DEP_TRGTS}
+            EXTRA_FLAGS ${EXTRA_FLAGS}
+            EXTRA_INCLUDES ${EXTRA_INCLUDES}
+            EXTRA_LIB_PATHS ${EXTRA_LIB_PATHS}
+            EXTRA_LIBS ${EXTRA_LIBS}
+        )
+        llvm_link_ir_into_bc_target(
+            TARGET ${TRGT}_source_bc
+            DEPEND_TARGETS ${TRGT}_source_ir
+        )
+    endif()
+
+    if(HOOK_BC_FILE_PATH)
+    create_bc_target_without_rebuild(
+        TARGET ${TRGT}_hook_bc
+        BC_FILE_PATH ${HOOK_BC_FILE_PATH}
+        DEPEND_TARGETS ${HOOK_TARGET}
+    )
+    else()
+        llvm_generate_ir_target(
+            TARGET ${TRGT}_hook_ir
+            DEPEND_TARGETS ${HOOK_TARGET}
+            EXTRA_FLAGS ${EXTRA_FLAGS}
+            EXTRA_INCLUDES ${EXTRA_INCLUDES}
+            EXTRA_LIB_PATHS ${EXTRA_LIB_PATHS}
+            EXTRA_LIBS ${EXTRA_LIBS}
+        )
+
+        llvm_link_ir_into_bc_target(
+            TARGET ${TRGT}_hook_bc
+            DEPEND_TARGETS ${TRGT}_hook_ir
+        )
+    endif()
+
+    llvm_link_bc_targets(
+        TARGET ${TRGT}
+        DEPEND_TARGETS ${TRGT}_source_bc ${TRGT}_hook_bc
+    )
+
+endfunction()
+
 function(nugget_nugget_bc)
     set(options LABEL_WARMUP)
     set(oneValueArgs 
@@ -211,6 +293,11 @@ function(nugget_nugget_bc)
         DEPEND_TARGETS ${DEP_TRGTS}
     )
 
+    llvm_link_bc_targets(
+        TARGET ${TRGT}_bc
+        DEPEND_TARGETS ${TRGT}_source_bc ${TRGT}_hook_bc
+    )
+
     set(ALL_TARGETS "")
     foreach(rid ${ALL_NUGGET_RIDS})
         set(OPT_CMD
@@ -231,7 +318,7 @@ function(nugget_nugget_bc)
 
         apply_opt_to_bc_target(
             TARGET ${TRGT}_${rid}
-            DEPEND_TARGET ${TRGT}_source_bc
+            DEPEND_TARGET ${TRGT}_bc
             OPT_COMMAND ${OPT_CMD}
         )
         list(APPEND ALL_TARGETS ${TRGT}_${rid})
@@ -243,7 +330,7 @@ endfunction()
 
 function(nugget_compile_exe)
     set(options)
-    set(oneValueArgs TARGET BB_FILE_PATH)
+    set(oneValueArgs TARGET BC_FILE_PATH)
     set(multiValueArgs 
         DEPEND_TARGETS
         ADDITIONAL_OPT
@@ -253,7 +340,7 @@ function(nugget_compile_exe)
         EXTRA_LIBS   
         LLC_CMD
         EXTRACT_FUNCTIONS
-        FINAL_BB_FILE_PATHS
+        FINAL_BC_FILE_PATHS
     )
     cmake_parse_arguments(
         NUGGET_COMPILE_EXE
@@ -266,11 +353,11 @@ function(nugget_compile_exe)
     set(EXTRA_INCLUDES ${NUGGET_COMPILE_EXE_EXTRA_INCLUDES})
     set(EXTRA_LIB_PATHS ${NUGGET_COMPILE_EXE_EXTRA_LIB_PATHS})
     set(EXTRA_LIBS ${NUGGET_COMPILE_EXE_EXTRA_LIBS})
-    set(BC_FILE_PATH ${NUGGET_COMPILE_EXE_BB_FILE_PATH})
+    set(BC_FILE_PATH ${NUGGET_COMPILE_EXE_BC_FILE_PATH})
     set(LLC_CMD ${NUGGET_COMPILE_EXE_LLC_CMD})
     set(EXTRACT_FUNCTIONS ${NUGGET_COMPILE_EXE_EXTRACT_FUNCTIONS})
     set(ADDITIONAL_OPT ${NUGGET_COMPILE_EXE_ADDITIONAL_OPT})
-    set(FINAL_BB_FILE_PATHS ${NUGGET_COMPILE_EXE_FINAL_BB_FILE_PATHS})
+    set(FINAL_BC_FILE_PATHS ${NUGGET_COMPILE_EXE_FINAL_BC_FILE_PATHS})
 
     if (NOT TRGT)
         message(FATAL_ERROR "TARGET not set")
@@ -299,9 +386,10 @@ function(nugget_compile_exe)
         endforeach()
     else()
         if(BC_FILE_PATH)
+            message(STATUS "BC_FILE_PATH: ${BC_FILE_PATH}")
             create_bc_target_without_rebuild(
                 TARGET ${TRGT}_bc
-                BC_FILE_PATH ${BB_FILE_PATH}
+                BC_FILE_PATH ${BC_FILE_PATH}
                 DEPEND_TARGETS ${DEP_TRGTS}
             )
             set(BC_TARGET ${TRGT}_bc)
