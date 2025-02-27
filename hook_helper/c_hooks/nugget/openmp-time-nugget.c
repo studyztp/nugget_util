@@ -3,6 +3,10 @@
 #include <time.h> 
 #include <stdatomic.h>
 
+uint64_t warmup_threshold;
+uint64_t start_threshold;
+uint64_t end_threshold;
+
 atomic_ullong warmup_counter;
 atomic_ullong start_counter;
 atomic_ullong end_counter;
