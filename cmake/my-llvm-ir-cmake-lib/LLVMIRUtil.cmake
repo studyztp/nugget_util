@@ -450,8 +450,8 @@ function(llvm_generate_ir_target)
             set(FILE_LANG_FLAGS ${GLOBAL_${FILE_LANG}_FLAGS})
 
             # set the compile command for the file
-            set(FILE_COMPILE_CMD "-emit-llvm" "-S" "-nostdlib" "-ffreestanding"
-                "-fno-builtin"
+            set(FILE_COMPILE_CMD "-emit-llvm" "-S"
+                ${FILE_LANG_FLAGS}
                 ${GLOBAL_COMPILE_OPTIONS} ${GLOBAL_COMPILE_FLAGS} 
                 ${ADD_FLAGS}
                 ${GLOBAL_DEFINITION} ${GLOBAL_INCLUDES} ${ADD_INCLUDES}
