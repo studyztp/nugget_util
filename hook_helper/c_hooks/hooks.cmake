@@ -15,7 +15,6 @@ message(STATUS "PAPI_PATH=${PAPI_PATH}")
 message(STATUS "M5_PATH=${M5_PATH}")
 message(STATUS "M5_INCLUDE_PATH=${M5_INCLUDE_PATH}")
 
-find_package(OpenMP REQUIRED)
 
 if (NOT PAPI_PATH)
     # Filter out targets containing "papi"
@@ -88,6 +87,11 @@ foreach(HOOK ${ALL_M5_HOOKS})
 endforeach()
 
 foreach(HOOK ${ALL_OPENMP_HOOKS})
-    target_link_libraries(${HOOK} PUBLIC OpenMP::OpenMP_CXX)
+    #    target_link_libraries(${HOOK} PUBLIC OpenMP::OpenMP_CXX)
+    target_link_options(
+        ${HOOK}
+        PRIVATE
+        -fopenmp
+    )
 endforeach()
 
