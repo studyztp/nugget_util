@@ -104,6 +104,7 @@ void process_data() {
     atomic_store(&counter, 0);
 }
 
+__attribute__((no_profile_instrument_function))
 void bb_hook(uint64_t bb_inst, uint64_t bb_id, uint64_t threshold) {
 /*
  * :param: bb_inst: the number of IR instructions in the basic block

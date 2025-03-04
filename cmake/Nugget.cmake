@@ -101,6 +101,116 @@ function(nugget_bbv_profiling_bc)
 
 endfunction()
 
+function(nugget_papi_profiling_bc)
+    set(options)
+    set(oneValueArgs TARGET REGION_LENGTH SOURCE_BC_FILE_PATH BB_INFO_OUTPUT_PATH HOOK_TARGET) 
+    set(multiValueArgs 
+        DEPEND_TARGETS
+        EXTRA_FLAGS
+        EXTRA_INCLUDES
+        EXTRA_LIB_PATHS
+        EXTRA_LIBS   
+    )
+    cmake_parse_arguments(
+        NUGGET_PAPI_PROFILING_BC 
+        "${options}" "${oneValueArgs}" "${multiValueArgs}" 
+        ${ARGN}
+    )
+
+    set(TRGT ${NUGGET_PAPI_PROFILING_BC_TARGET})
+    set(DEP_TRGTS ${NUGGET_PAPI_PROFILING_BC_DEPEND_TARGETS})
+    set(EXTRA_FLAGS ${NUGGET_PAPI_PROFILING_BC_EXTRA_FLAGS})
+    set(EXTRA_INCLUDES ${NUGGET_PAPI_PROFILING_BC_EXTRA_INCLUDES})
+    set(EXTRA_LIB_PATHS ${NUGGET_PAPI_PROFILING_BC_EXTRA_LIB_PATHS})
+    set(EXTRA_LIBS ${NUGGET_PAPI_PROFILING_BC_EXTRA_LIBS})
+    set(REGION_LENGTH ${NUGGET_PAPI_PROFILING_BC_REGION_LENGTH})
+    set(SOURCE_BC_FILE_PATH ${NUGGET_PAPI_PROFILING_BC_SOURCE_BC_FILE_PATH})
+    set(BB_INFO_OUTPUT_PATH ${NUGGET_PAPI_PROFILING_BC_BB_INFO_OUTPUT_PATH})
+    set(HOOK_TARGET ${NUGGET_PAPI_PROFILING_BC_HOOK_TARGET})
+
+    if (NOT TRGT)
+        message(FATAL_ERROR "TARGET not set")
+    endif()
+    if (NOT DEP_TRGTS)
+        message(FATAL_ERROR "DEPEND_TARGETS not set")
+    endif()
+
+    if(NOT LLVM_SETUP_DONE)
+        message(FATAL_ERROR "LLVM setup not done"
+            "Please call llvm_setup before calling nugget_bbv_profiling_bc")
+    endif()
+
+    if(NOT REGION_LENGTH)
+        message(FATAL_ERROR "REGION_LENGTH not set")
+    endif()
+
+    if(NOT BB_INFO_OUTPUT_PATH)
+        set(BB_INFO_OUTPUT_PATH "basic_block_info_output.txt")
+    endif()
+
+    if(NOT HOOK_TARGET)
+        message(FATAL_ERROR "HOOK_TARGET not set")
+    endif()
+
+    llvm_generate_ir_target(
+        TARGET ${TRGT}_hook_ir
+        DEPEND_TARGETS ${HOOK_TARGET}
+        EXTRA_FLAGS ${EXTRA_FLAGS}
+        EXTRA_INCLUDES ${EXTRA_INCLUDES}
+        EXTRA_LIB_PATHS ${EXTRA_LIB_PATHS}
+        EXTRA_LIBS ${EXTRA_LIBS}
+    )
+
+    llvm_link_ir_into_bc_target(
+        TARGET ${TRGT}_hook_bc
+        DEPEND_TARGETS ${TRGT}_hook_ir
+    )
+
+    if(SOURCE_BC_FILE_PATH)
+
+        create_bc_target_without_rebuild(
+            TARGET ${TRGT}_source_bc
+            BC_FILE_PATH ${SOURCE_BC_FILE_PATH}
+            DEPEND_TARGETS ${DEP_TRGTS}
+        )
+
+    else()
+        llvm_generate_ir_target(
+            TARGET ${TRGT}_source_ir
+            DEPEND_TARGETS ${DEP_TRGTS}
+            EXTRA_FLAGS ${EXTRA_FLAGS}
+            EXTRA_INCLUDES ${EXTRA_INCLUDES}
+            EXTRA_LIB_PATHS ${EXTRA_LIB_PATHS}
+            EXTRA_LIBS ${EXTRA_LIBS}
+        )
+
+        llvm_link_ir_into_bc_target(
+            TARGET ${TRGT}_source_bc
+            DEPEND_TARGETS ${TRGT}_source_ir
+        )
+
+    endif()
+
+    llvm_link_bc_targets(
+        TARGET ${TRGT}_bc
+        DEPEND_TARGETS ${TRGT}_source_bc ${TRGT}_hook_bc
+    )
+
+    set(OPT_CMD
+        -passes=phase-analysis 
+        -phase-analysis-output-file=${BB_INFO_OUTPUT_PATH}
+        -phase-analysis-using-papi=true 
+        -phase-analysis-region-length=${REGION_LENGTH}
+    )
+
+    apply_opt_to_bc_target(
+        TARGET ${TRGT}
+        DEPEND_TARGET ${TRGT}_bc
+        OPT_COMMAND ${OPT_CMD}
+    )
+
+endfunction()
+
 function(nugget_naive_bc)
     set(options)
     set(oneValueArgs TARGET HOOK_TARGET SOURCE_BC_FILE_PATH HOOK_BC_FILE_PATH)

@@ -79,6 +79,7 @@ void process_data() {
 }
 
 // Hook function to analyze basic blocks
+__attribute__((no_profile_instrument_function))
 void bb_hook(uint64_t bb_inst, uint64_t bb_id, uint64_t threshold) {
     if (if_start) {
         IR_inst_counter += bb_inst;
