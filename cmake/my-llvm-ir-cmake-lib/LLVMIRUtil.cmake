@@ -384,12 +384,15 @@ function(llvm_generate_ir_target)
             endif()
             
             # filename is with the extension, i.e. file.cpp
-            cmake_path(GET file FILENAME filename)
+            # cmake_path(GET file FILENAME filename)
+            get_filename_component(filename_with_ext "${file}" NAME)
             # stem is the filename without the extension, i.e. file
-            cmake_path(GET file STEM stem)
-
+            # Remove the last extension to get the stem
+            debug("Filename with ext is ${filename_with_ext}")
+            string(REGEX REPLACE "\\.[^.]*$" "" stem "${filename_with_ext}")
+            debug("Stem is ${stem}")
             # Get file extension, i.e. .cpp
-            get_filename_component(file_ext "${file}" EXT)
+            get_filename_component(file_ext "${file}" LAST_EXT)
             # Convert extension to lowercase
             string(TOLOWER "${file_ext}" file_ext_lower)
 
@@ -447,7 +450,8 @@ function(llvm_generate_ir_target)
             set(FILE_LANG_FLAGS ${GLOBAL_${FILE_LANG}_FLAGS})
 
             # set the compile command for the file
-            set(FILE_COMPILE_CMD "-emit-llvm" "-S" ${FILE_LANG_FLAGS}
+            set(FILE_COMPILE_CMD "-emit-llvm" "-S" "-nostdlib" "-ffreestanding"
+                "-fno-builtin"
                 ${GLOBAL_COMPILE_OPTIONS} ${GLOBAL_COMPILE_FLAGS} 
                 ${ADD_FLAGS}
                 ${GLOBAL_DEFINITION} ${GLOBAL_INCLUDES} ${ADD_INCLUDES}
