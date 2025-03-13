@@ -367,6 +367,17 @@ function(llvm_generate_ir_target)
 
         get_property(LOCAL_FILES TARGET ${dep_trgt} PROPERTY SOURCES)
 
+        get_property(MANUALLY_ADDED_DEPENDENCIES TARGET ${dep_trgt} PROPERTY 
+            MANUALLY_ADDED_DEPENDENCIES)
+
+        set(MAN_DEP "")
+
+        foreach(man_dep ${MANUALLY_ADDED_DEPENDENCIES})
+            if(NOT ${man_dep} IN_LIST ${dep_trgt})
+                list(APPEND ${MAN_DEP} ${man_dep})
+            endif()
+        endforeach()
+
         foreach(file ${LOCAL_FILES})
             # file path has to be real path
             if(NOT EXISTS "${file}")
@@ -469,7 +480,7 @@ function(llvm_generate_ir_target)
             add_custom_command(OUTPUT ${OUTPUT_FILEPATH}
                 COMMAND ${FILE_COMPILER} ${FILE_COMPILE_CMD} ${abs_path} 
                     -o ${OUTPUT_FILEPATH} 
-                DEPENDS ${abs_path} ${temp_library_target_list}
+                DEPENDS ${abs_path} ${temp_library_target_list} ${MAN_DEP}
                 COMMENT "Generating LLVM IR for ${file} with command: ${FILE_COMPILER} ${FILE_COMPILE_CMD} ${file} -o ${OUTPUT_FILEPATH} ${ADD_CMDS}"
                 VERBATIM
             )
