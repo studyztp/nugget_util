@@ -373,10 +373,12 @@ function(llvm_generate_ir_target)
         set(MAN_DEP "")
 
         foreach(man_dep ${MANUALLY_ADDED_DEPENDENCIES})
-            if(NOT ${man_dep} IN_LIST ${dep_trgt})
-                list(APPEND ${MAN_DEP} ${man_dep})
+            if(NOT "${man_dep}" IN_LIST ${DEP_TRGTS})
+                list(APPEND MAN_DEP "${man_dep}")
             endif()
         endforeach()
+
+        message(STATUS "ALl the manually added dependencies: ${MAN_DEP}")
 
         foreach(file ${LOCAL_FILES})
             # file path has to be real path
@@ -459,6 +461,18 @@ function(llvm_generate_ir_target)
             llvmir_extract_file_lang(FILE_LANG ${file_ext_lower})
             set(FILE_COMPILER ${LLVM_${FILE_LANG}_COMPILER})
             set(FILE_LANG_FLAGS ${GLOBAL_${FILE_LANG}_FLAGS})
+
+            # check if added flags work with the compiler
+            set(temp_list "")
+            foreach(flag ${ADD_FLAGS})
+                check_lang_flag_works_with_llvm_compiler(${flag} ${FILE_LANG} result)
+                if(${result})
+                    list(APPEND temp_list ${flag})
+                else()
+                    message(WARNING "Flag ${flag} is not supported by the LLVM ${FILE_LANG} compiler")
+                endif()
+            endforeach()
+            set(ADD_FLAGS ${temp_list})
 
             # set the compile command for the file
             set(FILE_COMPILE_CMD "-emit-llvm" "-S"

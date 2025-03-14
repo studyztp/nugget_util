@@ -13,6 +13,7 @@ function(nugget_bbv_profiling_bc)
         EXTRA_INCLUDES
         EXTRA_LIB_PATHS
         EXTRA_LIBS   
+        OPT_CMD
     )
     cmake_parse_arguments(
         NUGGET_BBV_PROFILING_BC 
@@ -28,6 +29,7 @@ function(nugget_bbv_profiling_bc)
     set(REGION_LENGTH ${NUGGET_BBV_PROFILING_BC_REGION_LENGTH})
     set(BB_INFO_OUTPUT_PATH ${NUGGET_BBV_PROFILING_BC_BB_INFO_OUTPUT_PATH})
     set(HOOK_TARGET ${NUGGET_BBV_PROFILING_BC_HOOK_TARGET})
+    set(OPT_CMD ${NUGGET_BBV_PROFILING_BC_OPT_CMD})
 
     if (NOT TRGT)
         message(FATAL_ERROR "TARGET not set")
@@ -52,6 +54,9 @@ function(nugget_bbv_profiling_bc)
     if(NOT HOOK_TARGET)
         message(FATAL_ERROR "HOOK_TARGET not set")
     endif()
+
+    message(STATUS "EXTRA FLAGS: ${EXTRA_FLAGS}")
+    message(STATUS "OPT_CMD: ${OPT_CMD}")
 
     llvm_generate_ir_target(
         TARGET ${TRGT}_hook_ir
@@ -86,7 +91,17 @@ function(nugget_bbv_profiling_bc)
         DEPEND_TARGETS ${TRGT}_source_bc ${TRGT}_hook_bc
     )
 
-    set(OPT_CMD
+    if ("${OPT_CMD}" STREQUAL "")
+        set(${TRGT}_opted_bc ${TRGT}_bc)
+    else()
+        apply_opt_to_bc_target(
+            TARGET ${TRGT}_opted_bc
+            DEPEND_TARGET ${TRGT}_bc
+            OPT_COMMAND ${OPT_CMD}
+        )
+    endif()
+
+    set(OPT_HOOK_CMD
         -passes=phase-analysis 
         -phase-analysis-output-file=${BB_INFO_OUTPUT_PATH}
         -phase-analysis-using-papi=false 
@@ -95,8 +110,8 @@ function(nugget_bbv_profiling_bc)
 
     apply_opt_to_bc_target(
         TARGET ${TRGT}
-        DEPEND_TARGET ${TRGT}_bc
-        OPT_COMMAND ${OPT_CMD}
+        DEPEND_TARGET ${TRGT}_opted_bc
+        OPT_COMMAND ${OPT_HOOK_CMD}
     )
 
 endfunction()
