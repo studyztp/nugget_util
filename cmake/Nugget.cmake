@@ -86,20 +86,21 @@ function(nugget_bbv_profiling_bc)
         DEPEND_TARGETS ${TRGT}_hook_ir
     )
 
-    llvm_link_bc_targets(
-        TARGET ${TRGT}_bc
-        DEPEND_TARGETS ${TRGT}_source_bc ${TRGT}_hook_bc
-    )
 
     if ("${OPT_CMD}" STREQUAL "")
-        set(${TRGT}_opted_bc ${TRGT}_bc)
+        set(${TRGT}_source_opted_bc ${TRGT}_source_bc)
     else()
         apply_opt_to_bc_target(
-            TARGET ${TRGT}_opted_bc
-            DEPEND_TARGET ${TRGT}_bc
+            TARGET ${TRGT}_source_opted_bc
+            DEPEND_TARGET ${TRGT}_source_bc
             OPT_COMMAND ${OPT_CMD}
         )
     endif()
+
+    llvm_link_bc_targets(
+        TARGET ${TRGT}_bc
+        DEPEND_TARGETS ${TRGT}_source_opted_bc ${TRGT}_hook_bc
+    )
 
     set(OPT_HOOK_CMD
         -passes=phase-analysis 
@@ -110,7 +111,7 @@ function(nugget_bbv_profiling_bc)
 
     apply_opt_to_bc_target(
         TARGET ${TRGT}
-        DEPEND_TARGET ${TRGT}_opted_bc
+        DEPEND_TARGET ${TRGT}_bc
         OPT_COMMAND ${OPT_HOOK_CMD}
     )
 
