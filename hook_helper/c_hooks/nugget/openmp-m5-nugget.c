@@ -20,27 +20,27 @@ BOOL if_start_not_met = FALSE;
 BOOL if_end_not_met = FALSE;
 
 void warmup_event() {
-    m5_hypercall_addr(2);
+    m5_work_begin_addr(0,0);
 }
 
 void start_event() {
-    m5_hypercall(3);
+    m5_work_begin(0,0);
 }
 
 void end_event() {
-    m5_hypercall(4);
+    m5_work_end(0,0);
 }
 
 void roi_begin_() {
     num_threads = omp_get_max_threads();
     if_warmup_not_met = TRUE;
     map_m5_mem();
-    m5_hypercall_addr(1);
+    m5_work_begin_addr(0,0);
     printf("ROI begin\n");
 }
 
 void roi_end_() {
-    m5_hypercall(5);
+    m5_work_end(0,0);
     unmap_m5_mem();
     printf("ROI end\n");
 }

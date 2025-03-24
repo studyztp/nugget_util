@@ -12,18 +12,18 @@ void roi_begin_() {
 #endif
 
 #if defined(USE_ADDR_VERSION_M5OPS_BEGIN)
-    m5_hypercall_addr(1);
+    m5_work_begin_addr(0,0);
 #else
-    m5_hypercall(1);
+    m5_work_begin(0,0);
 #endif
 }
 
 void roi_end_() {
     printf("ROI end\n");
 #ifdef USE_ADDR_VERSION_M5OPS_END
-    m5_hypercall_addr(2);
+    m5_work_end_addr(0,0);
     unmap_m5_mem();
 #else
-    m5_hypercall(2);
+    m5_work_end(0,0);
 #endif
 }
