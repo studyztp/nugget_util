@@ -135,7 +135,10 @@ void roi_end_() {
     counter_array[region] = IR_inst_counter;
     total_IR_inst += IR_inst_counter;
     region ++;
-    uint64_t array_index = region % ARRAY_SIZE;
+    uint64_t array_index  = region % ARRAY_SIZE;
+    if (array_index == 0) {
+        array_index = ARRAY_SIZE;
+    }
     write_down_data(array_index);
 
     fprintf(fptr, "region_inst,N/A,N/A");
