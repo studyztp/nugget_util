@@ -26,6 +26,19 @@ if ("single-threaded-ir-bb-analysis" IN_LIST ALL_HOOKS)
     )
 endif()
 
+if ("single-threaded-ir-bb-analysis-balance" IN_LIST ALL_HOOKS)
+    target_sources(single-threaded-ir-bb-analysis-balance
+        PUBLIC
+        single-threaded-ir-bb-analysis-balance.c    
+    )
+
+    target_include_directories(
+        single-threaded-ir-bb-analysis-balance
+        PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+endif()
+
 if ("single-threaded-papi-analysis" IN_LIST ALL_HOOKS)
     target_sources(single-threaded-papi-analysis
         PUBLIC

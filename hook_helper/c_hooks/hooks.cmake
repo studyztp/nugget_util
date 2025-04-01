@@ -2,6 +2,7 @@
 set(ALL_HOOKS
     openmp-ir-bb-analysis
     single-threaded-ir-bb-analysis
+    single-threaded-ir-bb-analysis-balance
     single-threaded-papi-analysis
     m5-naive
     nothing-naive
