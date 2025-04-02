@@ -155,7 +155,7 @@ void roi_end_() {
 
 // Free allocated memory for arrays
 void delete_array() {
-    for (uint64_t i = 0; i < current_array_size; i++) {
+    for (uint64_t i = 0; i < ARRAY_SIZE; i++) {
         free(bbv_array[i]);
         free(count_stamp_array[i]);
     }

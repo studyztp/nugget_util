@@ -243,7 +243,7 @@ void delete_array() {
 /*
  * this function is used to free the memory allocated for the arrays
 */
-    for (unsigned long long i = 0; i < current_array_size; i++) {
+    for (unsigned long long i = 0; i < ARRAY_SIZE; i++) {
         free(bbv_array[i]);
         free(count_stamp_array[i]);
     }

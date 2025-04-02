@@ -344,6 +344,138 @@ def form_all_markers(
     except Exception as e:
         raise RuntimeError(f"Failed to process markers: {str(e)}")
 
+def form_a_list_markers(
+        df: pd.DataFrame,
+        bb_id_map: Dict[str, int], 
+        num_warmup_region: int, 
+        grace_perc: float, 
+        region_length: int,
+        targeted_markers = []
+    ) -> pd.DataFrame:
+
+    """Form all markers for regions based on BBV analysis.
+    
+    Args:
+        file_path: Path to the CSV file
+        num_warmup_region: Number of warmup regions
+        grace_perc: Grace period percentage (0-1)
+        region_length: Length of each region
+        targeted_markers: List of targeted markers to find
+        
+    Returns:
+        List of tuples (rid, warmup_bid, warmup_count, start_bid, start_count, end_bid, end_count)
+    """
+    try:
+        total_num_regions = get_total_regions(df)
+        
+        # Initialize arrays
+        zero_bbv = [0 for _ in range(len(bb_id_map))]
+        global_bbv = zero_bbv.copy()
+        threshold = region_length * grace_perc
+        previous_global_bbvs = []
+
+        reversed_bb_id_map = reverse_map(bb_id_map)
+
+        marker_df = pd.DataFrame(columns=[
+            'region', 'warmup_rid', 'start_rid', 'warmup_bid', 'warmup_count',
+            'start_bid', 'start_count', 'end_bid', 'end_count'
+        ])
+
+        for i in range(len(targeted_markers)):
+            targeted_markers[i] = int(targeted_markers[i])
+
+        found_markers = []
+
+        for i in range(total_num_regions):
+            try:
+                end_bbv = form_bbv_for_a_region(df, i, bb_id_map)
+                global_bbv = combine_bbv(global_bbv, end_bbv)
+                if i in targeted_markers:
+                    # if we are finding the end of region 0, it should be the 
+                    # bbv and csv of region 0
+                    end_bbv = form_bbv_for_a_region(df, i, bb_id_map)
+                    end_csv = form_count_stamp_for_a_region(df, i, bb_id_map)
+                    global_bbv = combine_bbv(global_bbv, end_bbv)
+
+                    # Calculate safe indices
+                    warmup_rid = \
+                        max(-1, i - num_warmup_region - 1)
+                    start_rid = max(-1, i - 1)
+
+                    # -1 is a special case for the first region
+                    if warmup_rid == -1:
+                        warmup_bbv = zero_bbv.copy()
+                        warmup_csv = zero_bbv.copy()
+                    else:
+                        warmup_bbv = previous_global_bbvs[warmup_rid].copy()
+                        warmup_csv = form_count_stamp_for_a_region(df, warmup_rid, bb_id_map)
+                    
+                    if start_rid == -1:
+                        start_bbv = zero_bbv.copy()
+                        start_csv = zero_bbv.copy()
+                    else:
+                        start_bbv = previous_global_bbvs[start_rid].copy()
+                        start_csv = form_count_stamp_for_a_region(df, start_rid, bb_id_map)
+
+                    # Calculate the relative BBV between the start and warmup
+                    relative_start_bbv = relative_bbv(start_bbv, warmup_bbv)
+
+                    # Calculate the relative BBV between the end and start
+                    relative_end_bbv = relative_bbv(global_bbv, start_bbv)
+
+                    # Find the least count for warmup marker
+                    least_warmup_count, least_warmup_count_index = find_infrequent_bb(
+                        warmup_csv, warmup_bbv, threshold
+                    )
+                    
+                    # Find the least count for start marker inside the grace period
+                    least_start_count, least_start_count_index = find_infrequent_bb(
+                        start_csv, relative_start_bbv, threshold
+                    )
+
+                    # Find the least count for end marker inside the grace period
+                    least_end_count, least_end_count_index = find_infrequent_bb(
+                        end_csv, relative_end_bbv, threshold
+                    )
+
+                    # Create marker with actual indices
+                    warmup_bid = least_warmup_count_index
+                    warmup_count = least_warmup_count
+                    if warmup_count == 0:
+                        warmup_bid = 0
+                    start_bid = least_start_count_index
+                    start_count = least_start_count
+                    if start_count == 0:
+                        start_bid = 0
+                    end_bid = least_end_count_index
+                    end_count = least_end_count
+
+                    new_marker = pd.DataFrame({
+                        'region': [i],
+                        'warmup_rid': [warmup_rid],
+                        'start_rid': [start_rid],
+                        'warmup_bid': [reversed_bb_id_map[warmup_bid]],
+                        'warmup_count': [warmup_count],
+                        'start_bid': [reversed_bb_id_map[start_bid]],
+                        'start_count': [start_count],
+                        'end_bid': [reversed_bb_id_map[end_bid]],
+                        'end_count': [end_count]
+                    })
+                    marker_df = pd.concat([marker_df, new_marker], ignore_index=True)
+                    found_markers.append(i)
+                    if len(found_markers) == len(targeted_markers):
+                        break
+                previous_global_bbvs.append(global_bbv.copy())
+
+            except Exception as e:
+                print(f"Warning: Error processing region {i}: {str(e)}")
+                continue
+
+        return marker_df
+
+    except Exception as e:
+        raise RuntimeError(f"Failed to process markers: {str(e)}")
+
 def get_static_info(file_path):
     info = {}
     with open(file_path, "r") as f:
