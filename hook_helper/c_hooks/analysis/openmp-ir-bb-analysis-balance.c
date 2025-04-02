@@ -27,6 +27,7 @@ FILE* fptr = NULL;
 
 __attribute__((no_profile_instrument_function))
 void write_down_data(uint64_t limit) {
+    uint64_t index = 0;
     for (unsigned long long i = 0; i < limit; i++) {
         // the format of each line in the output file is:
         // type, region, thread, data
@@ -220,7 +221,7 @@ void roi_end_() {
         array_index = ARRAY_SIZE;
     }
     write_down_data(array_index);
-    
+
     // store the data for the last region
 
     fprintf(fptr, "region_inst,N/A,N/A");
