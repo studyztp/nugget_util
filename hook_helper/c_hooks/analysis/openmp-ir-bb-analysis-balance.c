@@ -23,6 +23,8 @@ uint64_t* bbv = NULL;
 uint64_t* count_stamp = NULL;
 uint64_t* counter_array = NULL;
 
+uint64_t file_line_index = 0;
+
 FILE* fptr = NULL;
 
 __attribute__((no_profile_instrument_function))
@@ -33,7 +35,7 @@ void write_down_data(uint64_t limit) {
         // type, region, thread, data
 
         for (unsigned long long j = 0; j < num_threads; j++) {
-            fprintf(fptr, "bbv,%llu,%llu", i, j);
+            fprintf(fptr, "bbv,%llu,%llu", file_line_index, j);
             index = j * (total_num_bbs + 64);
             for (unsigned long long k = 0; k < total_num_bbs; k++) {
                 if (bbv_array[i][index] != 0) {
@@ -43,7 +45,7 @@ void write_down_data(uint64_t limit) {
             }
             fprintf(fptr, "\n");
 
-            fprintf(fptr, "csv,%llu,%llu", i, j);
+            fprintf(fptr, "csv,%llu,%llu", file_line_index, j);
             index = j * (total_num_bbs + 64);
             for (unsigned long long k = 0; k < total_num_bbs; k++) {
                 if (count_stamp_array[i][index] != 0) {
@@ -53,7 +55,7 @@ void write_down_data(uint64_t limit) {
             }
             fprintf(fptr, "\n");
 
-            fprintf(fptr, "bb_id,%llu,%llu", i, j);
+            fprintf(fptr, "bb_id,%llu,%llu", file_line_index, j);
             index = j * (total_num_bbs + 64);
             for (unsigned long long k = 0; k < total_num_bbs; k++) {
                 if (bbv_array[i][index] != 0) {
@@ -63,6 +65,7 @@ void write_down_data(uint64_t limit) {
             }
             fprintf(fptr, "\n");
         }
+        file_line_index ++;
     }
 }
 
@@ -200,6 +203,8 @@ void roi_begin_() {
     }
 
     fprintf(fptr, "type,region,thread,data\n");
+
+    file_line_index = 0;
     
 }
 
@@ -222,6 +227,9 @@ void roi_end_() {
     }
     write_down_data(array_index);
 
+    printf("file_line_index: %llu\n", file_line_index);
+    printf("region: %llu\n", region);
+
     // store the data for the last region
 
     fprintf(fptr, "region_inst,N/A,N/A");
@@ -235,7 +243,6 @@ void roi_end_() {
     delete_array();
 
     printf("ROI end\n");
-    printf("Region: %llu\n", region);
     printf("Total IR instructions: %llu\n", total_IR_inst);
 }
 

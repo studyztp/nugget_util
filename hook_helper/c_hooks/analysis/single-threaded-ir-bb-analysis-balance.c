@@ -15,32 +15,35 @@ uint64_t* bbv = NULL;
 uint64_t* count_stamp = NULL;
 uint64_t* counter_array = NULL;
 
+uint64_t file_line_index = 0;
+
 FILE* fptr = NULL;
 
 __attribute__((no_profile_instrument_function))
 void write_down_data(uint64_t limit) {
     for (uint64_t i = 0; i < limit; i ++) {
-        fprintf(fptr, "bbv,%llu,0", i);
+        fprintf(fptr, "bbv,%llu,0", file_line_index);
         for (uint64_t k = 0; k < total_num_bbs; k ++) {
             if (bbv_array[i][k] != 0) {
                 fprintf(fptr, ",%llu", bbv_array[i][k]);
             }
         }
         fprintf(fptr, "\n");
-        fprintf(fptr, "csv,%llu,0", i);
+        fprintf(fptr, "csv,%llu,0", file_line_index);
         for (uint64_t k = 0; k < total_num_bbs; k ++) {
             if (count_stamp_array[i][k] != 0) {
                 fprintf(fptr, ",%llu", count_stamp_array[i][k]);
             }
         }
         fprintf(fptr, "\n");
-        fprintf(fptr, "bb_id,%llu,0", i);
+        fprintf(fptr, "bb_id,%llu,0", file_line_index);
         for (uint64_t k = 0; k < total_num_bbs; k ++) {
             if (bbv_array[i][k] != 0) {
                 fprintf(fptr, ",%llu", k);
             }
         }
         fprintf(fptr, "\n");
+        file_line_index ++;
     }
 }
 
@@ -141,6 +144,9 @@ void roi_end_() {
     }
     write_down_data(array_index);
 
+    printf("file_line_index: %llu\n", file_line_index);
+    printf("region: %llu\n", region);
+
     fprintf(fptr, "region_inst,N/A,N/A");
     for (uint64_t i = 0; i < region; i++) {
         fprintf(fptr, ",%llu", counter_array[i]);
@@ -149,7 +155,6 @@ void roi_end_() {
     fclose(fptr);
     delete_array();
     printf("ROI end\n");
-    printf("Region: %llu\n", region);
     printf("Total IR instructions: %llu\n", total_IR_inst);
 }
 
