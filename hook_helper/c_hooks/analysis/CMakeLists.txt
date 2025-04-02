@@ -13,6 +13,20 @@ if("openmp-ir-bb-analysis" IN_LIST ALL_HOOKS)
 endif()
 
 
+if("openmp-ir-bb-analysis-balance" IN_LIST ALL_HOOKS)
+    target_sources(openmp-ir-bb-analysis-balance
+        PUBLIC
+        openmp-ir-bb-analysis-balance.c    
+    )
+
+    target_include_directories(
+        openmp-ir-bb-analysis-balance
+        PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+endif()
+
+
 if ("single-threaded-ir-bb-analysis" IN_LIST ALL_HOOKS)
     target_sources(single-threaded-ir-bb-analysis
         PUBLIC
