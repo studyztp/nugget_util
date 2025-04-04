@@ -393,9 +393,7 @@ def form_a_list_markers(
                 if i in targeted_markers:
                     # if we are finding the end of region 0, it should be the 
                     # bbv and csv of region 0
-                    end_bbv = form_bbv_for_a_region(df, i, bb_id_map)
                     end_csv = form_count_stamp_for_a_region(df, i, bb_id_map)
-                    global_bbv = combine_bbv(global_bbv, end_bbv)
 
                     # Calculate safe indices
                     warmup_rid = \
