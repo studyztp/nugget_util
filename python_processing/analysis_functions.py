@@ -273,6 +273,9 @@ def form_all_markers(
                     max(-1, i - num_warmup_region - 1)
                 start_rid = max(-1, i - 1)
 
+                if warmup_rid == start_rid:
+                    warmup_rid = -1
+
                 # -1 is a special case for the first region
                 if warmup_rid == -1:
                     warmup_bbv = zero_bbv.copy()
@@ -399,6 +402,9 @@ def form_a_list_markers(
                     warmup_rid = \
                         max(-1, i - num_warmup_region - 1)
                     start_rid = max(-1, i - 1)
+
+                    if warmup_rid == start_rid:
+                        warmup_rid = -1
 
                     # -1 is a special case for the first region
                     if warmup_rid == -1:
