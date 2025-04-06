@@ -637,6 +637,35 @@ def find_optimal_kmeans(data: np.ndarray, max_k: int = 10) -> int:
 
     return optimal_k, optimal_kmeans
 
+def find_optimal_kmeans_memory_usage_optimized(data: np.ndarray, max_k: int = 10) -> int:
+    """Find optimal k-means clusters using BIC.
+    
+    Args:
+        data: Normalized data matrix
+        max_k: Maximum number of clusters to try
+        
+    Returns:
+        Optimal number of clusters
+    """
+    silhouette_scores = []
+    k_values = range(2, max_k + 1)
+    
+    for k in k_values:
+        kmeans = KMeans(n_clusters=k, random_state=RANDOM_SEED)
+        kmeans.fit(data)
+        labels = kmeans.labels_
+        silhouette_scores.append(silhouette_score(data, labels))
+        # do not store the kmeans data to save memory
+    
+    # Find elbow point or minimum BIC
+    optimal_k = k_values[np.argmax(silhouette_scores)]
+
+    # after knowing the optimized k, get the kmeans data
+    optimal_kmeans = KMeans(n_clusters=optimal_k, random_state=RANDOM_SEED)
+    optimal_kmeans.fit(data)
+
+    return optimal_k, optimal_kmeans
+
 def find_rep_rid(data, labels, centers):
     rep_rid = {}
     for i, center in enumerate(centers):
@@ -714,7 +743,7 @@ def k_means_select_regions(
 
     data = reduce_data_dim_with_pca(data, n_components=n_reduce_components)
 
-    k, optimal_kmeans = find_optimal_kmeans(data, max_k=k)
+    k, optimal_kmeans = find_optimal_kmeans_memory_usage_optimized(data, max_k=k)
 
     centers = optimal_kmeans.cluster_centers_
     labels = optimal_kmeans.labels_
