@@ -310,7 +310,6 @@ function(nugget_naive_bc)
 endfunction()
 
 function(nugget_nugget_bc)
-    set(options LABEL_WARMUP)
     set(oneValueArgs 
         TARGET 
         HOOK_TARGET
@@ -321,6 +320,7 @@ function(nugget_nugget_bc)
         BB_INFO_INPUT_PATH 
         BB_INFO_OUTPUT_DIR
         LABEL_TARGET
+        LABEL_WARMUP
         )
     set(multiValueArgs
         DEPEND_TARGETS
