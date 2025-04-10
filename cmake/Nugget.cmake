@@ -434,11 +434,9 @@ function(nugget_nugget_bc)
 
         if(LABEL_TARGET)
             list(APPEND OPT_CMD -phase-bound-label-target=${LABEL_TARGET})
-            if(LABEL_WARMUP)
-                list(APPEND OPT_CMD -phase-bound-label-warmup=true)
-            else()
-                list(APPEND OPT_CMD -phase-bound-label-warmup=false)
-            endif()
+
+            list(APPEND OPT_CMD -phase-bound-label-warmup=${LABEL_WARMUP})
+
             list(APPEND OPT_CMD -phase-bound-label-only=true)
         endif()
 
