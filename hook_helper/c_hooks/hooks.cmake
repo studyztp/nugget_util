@@ -87,6 +87,14 @@ foreach(HOOK ${ALL_M5_HOOKS})
     message(STATUS "Include dirs: ${INCLUDE_DIRS}")
     message(STATUS "Link dirs: ${LINK_DIRS}")
     message(STATUS "Link libs: ${LINK_LIBS}")
+
+    if (NOT "${USE_ADDR_VERSION_M5OPS_BEGIN}" STREQUAL "")
+        target_compile_definitions(${HOOK} PUBLIC USE_ADDR_VERSION_M5OPS_BEGIN=${USE_ADDR_VERSION_M5OPS_BEGIN})
+    endif()
+    if (NOT "${USE_ADDR_VERSION_M5OPS_END}" STREQUAL "")
+        target_compile_definitions(${HOOK} PUBLIC USE_ADDR_VERSION_M5OPS_END=${USE_ADDR_VERSION_M5OPS_END})
+    endif()
+
 endforeach()
 
 foreach(HOOK ${ALL_OPENMP_HOOKS})
