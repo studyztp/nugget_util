@@ -1,5 +1,5 @@
 #include "common.h"
-#include <sim_api.h>
+// #include <sim_api.h>
 
 // Forward declaration of SimMarker
 extern void SimMarker(int a, int b);
