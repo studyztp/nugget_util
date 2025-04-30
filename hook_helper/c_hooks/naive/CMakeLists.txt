@@ -38,3 +38,17 @@ if ("papi-naive" IN_LIST ALL_HOOKS)
         ${CMAKE_CURRENT_SOURCE_DIR}
     )
 endif()
+
+if ("sniper-naive" IN_LIST ALL_HOOKS)
+    target_sources(
+        sniper-naive
+        PUBLIC
+        sniper-naive.c
+    )
+
+    target_include_directories(
+        sniper-naive
+        PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+endif()

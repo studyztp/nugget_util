@@ -54,3 +54,31 @@ if ("single-threaded-papi-nugget" IN_LIST ALL_HOOKS)
         ${CMAKE_CURRENT_SOURCE_DIR}
     )
 endif()
+
+if ("openmp-sniper-nugget" IN_LIST ALL_HOOKS)
+    target_sources(
+        openmp-sniper-nugget
+        PUBLIC
+        openmp-sniper-nugget.c
+    )
+
+    target_include_directories(
+        openmp-sniper-nugget
+        PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+endif()
+
+if ("single-threaded-sniper-nugget" IN_LIST ALL_HOOKS)
+    target_sources(
+        single-threaded-sniper-nugget
+        PUBLIC
+        single-threaded-sniper-nugget.c
+    )
+
+    target_include_directories(
+        single-threaded-sniper-nugget
+        PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+endif()
