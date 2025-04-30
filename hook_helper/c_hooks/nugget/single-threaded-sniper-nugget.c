@@ -1,6 +1,9 @@
 #include "common.h"
 #include <sim_api.h>
 
+// Forward declaration of SimMarker
+extern void SimMarker(int a, int b);
+
 uint64_t counter = 0;
 
 uint64_t warmup_threshold;

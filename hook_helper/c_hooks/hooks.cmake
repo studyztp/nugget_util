@@ -121,7 +121,7 @@ foreach(HOOK ${ALL_OPENMP_HOOKS})
     )
 endforeach()
 
-foreach(HOOK ${ALL_SNIPER_HOOKS})
-    target_include_directories(${HOOK} PUBLIC ${SNIPER_INCLUDE_PATH})
-endforeach()
+# foreach(HOOK ${ALL_SNIPER_HOOKS})
+#     target_include_directories(${HOOK} PUBLIC ${SNIPER_INCLUDE_PATH})
+# endforeach()
 
