@@ -20,7 +20,7 @@ set(ALL_HOOKS
 message(STATUS "PAPI_PATH=${PAPI_PATH}")
 message(STATUS "M5_PATH=${M5_PATH}")
 message(STATUS "M5_INCLUDE_PATH=${M5_INCLUDE_PATH}")
-message(STATUS "SNIPER_INCLUDE_PATH=${SNIPER_INCLUDE_PATH}")
+message(STATUS "SNIPER_PATH=${SNIPER_PATH}")
 
 if (NOT PAPI_PATH)
     # Filter out targets containing "papi"
@@ -34,10 +34,10 @@ if (NOT M5_PATH OR NOT M5_INCLUDE_PATH)
     message(WARNING "Filtered out M5 hooks due to missing M5_PATH or M5_INCLUDE_PATH")
 endif()
 
-if (NOT SNIPER_INCLUDE_PATH)
+if (NOT SNIPER_PATH)
     # Filter out targets containing "sniper"
     list(FILTER ALL_HOOKS EXCLUDE REGEX ".*sniper.*")
-    message(WARNING "Filtered out Sniper hooks due to missing SNIPER_INCLUDE_PATH")
+    message(WARNING "Filtered out Sniper hooks due to missing SNIPER_PATH")
 endif()
 
 set(ALL_PAPI_HOOKS "")
@@ -121,7 +121,7 @@ foreach(HOOK ${ALL_OPENMP_HOOKS})
     )
 endforeach()
 
-# foreach(HOOK ${ALL_SNIPER_HOOKS})
-#     target_include_directories(${HOOK} PUBLIC ${SNIPER_INCLUDE_PATH})
-# endforeach()
+foreach(HOOK ${ALL_SNIPER_HOOKS})
+    target_link_libraries(${HOOK} PUBLIC ${SNIPER_PATH}/libsniper.a)
+endforeach()
 
