@@ -20,7 +20,7 @@ BOOL if_end_not_met = FALSE;
 
 void warmup_event() {
     // Warmup event
-    SimMarker(1, 0)
+    SimMarker(1, 0);
 }
 
 void start_event() {
