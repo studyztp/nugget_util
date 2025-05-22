@@ -20,6 +20,7 @@ void roi_begin_() {
 }
 
 void roi_end_() {
+    if_start = FALSE;
     FILE *fptr = fopen("counts.txt", "a");
     if (fptr == NULL) {
         perror("Error opening counts.txt");
