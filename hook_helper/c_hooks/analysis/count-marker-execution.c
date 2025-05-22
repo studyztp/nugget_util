@@ -1,5 +1,4 @@
 #include "common.h"
-#include <omp.h>
 #include <time.h> 
 #include <stdatomic.h>
 
