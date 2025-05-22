@@ -26,6 +26,19 @@ if("openmp-ir-bb-analysis-balance" IN_LIST ALL_HOOKS)
     )
 endif()
 
+if("openmp-count-marker-execution" IN_LIST ALL_HOOKS)
+    target_sources(openmp-count-marker-execution
+        PUBLIC
+        openmp-count-marker-execution.c    
+    )
+
+    target_include_directories(
+        openmp-count-marker-execution
+        PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+endif()
+
 
 if ("single-threaded-ir-bb-analysis" IN_LIST ALL_HOOKS)
     target_sources(single-threaded-ir-bb-analysis
