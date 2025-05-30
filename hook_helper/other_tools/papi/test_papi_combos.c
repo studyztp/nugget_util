@@ -27,8 +27,9 @@ long long values[COMBO_SIZE];
 long long total_tested = 0, total_supported = 0;
 
 static void print_combo(const int idx[COMBO_SIZE]) {
+	printf("[");
     for (int i = 0; i < COMBO_SIZE; i++) {
-        printf("%s%s", event_names[idx[i]], (i+1<COMBO_SIZE? ", " : "\n"));
+        printf("'%s%s", event_names[idx[i]], (i+1<COMBO_SIZE? "', " : "],\n"));
     }
 }
 
@@ -122,9 +123,11 @@ int main(void) {
         } else {
             printf("✅ Found a cover of size %d (theoretical min %d):\n\n", cover_sz, target);
         }
+	printf("[");
         for (int i = 0; i < cover_sz; i++) {
             print_combo(supported_idxs[cover_order[i]]);
         }
+	printf("]");
     }
     return EXIT_SUCCESS;
 }
