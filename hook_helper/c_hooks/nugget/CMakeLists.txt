@@ -82,3 +82,45 @@ if ("single-threaded-sniper-nugget" IN_LIST ALL_HOOKS)
         ${CMAKE_CURRENT_SOURCE_DIR}
     )
 endif()
+
+if ("empty-hooks-nugget" IN_LIST ALL_HOOKS)
+    target_sources(
+        empty-hooks-nugget
+        PUBLIC
+        empty-hooks-nugget.c
+    )
+
+    target_include_directories(
+        empty-hooks-nugget
+        PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+endif()
+
+if ("single-threaded-empty-m5-nugget" IN_LIST ALL_HOOKS)
+    target_sources(
+        single-threaded-empty-m5-nugget
+        PUBLIC
+        single-threaded-empty-m5-nugget.c
+    )
+
+    target_include_directories(
+        single-threaded-empty-m5-nugget
+        PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+endif()
+
+if ("openmp-empty-m5-nugget" IN_LIST ALL_HOOKS)
+    target_sources(
+        openmp-empty-m5-nugget
+        PUBLIC
+        openmp-empty-m5-nugget.c
+    )
+
+    target_include_directories(
+        openmp-empty-m5-nugget
+        PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+endif()

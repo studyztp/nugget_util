@@ -2,7 +2,7 @@
 set(ALL_HOOKS
     openmp-ir-bb-analysis
     openmp-ir-bb-analysis-balance
-    openmp-count-marker-execution
+    count-marker-execution
     single-threaded-ir-bb-analysis
     single-threaded-ir-bb-analysis-balance
     single-threaded-papi-analysis
@@ -16,6 +16,9 @@ set(ALL_HOOKS
     single-threaded-papi-nugget
     openmp-sniper-nugget
     single-threaded-sniper-nugget
+    empty-hooks-nugget
+    single-threaded-empty-m5-nugget
+    openmp-empty-m5-nugget
 )
 
 message(STATUS "PAPI_PATH=${PAPI_PATH}")

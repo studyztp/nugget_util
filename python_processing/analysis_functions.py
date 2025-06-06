@@ -479,6 +479,64 @@ def form_a_list_markers(
 
     except Exception as e:
         raise RuntimeError(f"Failed to process markers: {str(e)}")
+    
+def get_total_count_of_list_of_markers(
+        df: pd.DataFrame,
+        markers: List[int],
+        bb_id_map: Dict[str, int]
+    ) -> Dict[str, int]:
+    """Get the total count of a list of markers.
+    Args:
+        df: DataFrame containing region information
+        markers: List of marker region numbers
+        bb_id_map: Dictionary mapping block IDs to indices
+    Returns:
+        Dictionary with marker region as key and total count as value
+    """
+    try:
+        if not markers:
+            raise ValueError("Markers list is empty")
+        if not isinstance(markers, list):
+            raise TypeError("Markers should be a list of integers")
+        if not all(isinstance(marker, int) for marker in markers):
+            raise TypeError("All markers should be integers")
+        if len(markers) <= 0:
+            raise ValueError("Markers list should contain at least one marker")
+        
+        total_counts = {}
+
+        total_num_regions = get_total_regions(df)
+        
+        # Initialize arrays
+        global_bbv = [0 for _ in range(len(bb_id_map))]
+
+        for marker in markers:
+            total_counts[marker] = 0
+
+        for i in range(total_num_regions):
+            try:
+                end_bbv = form_bbv_for_a_region(df, i, bb_id_map)
+                # print(f"Processing region {i}, BBV: {end_bbv}")
+                global_bbv = combine_bbv(global_bbv, end_bbv)
+                # print(f"Global BBV after region {i}: {global_bbv}")
+            except Exception as e:
+                # print(f"Warning: Error processing region {i}: {str(e)}")
+                continue
+        # print(f"Global BBV after processing all regions: {global_bbv}")
+        for marker in markers:
+            try:
+                marker_bb_id = bb_id_map[marker]
+                marker_count = global_bbv[marker_bb_id]
+                print(f"Marker {marker} with bb_id {marker_bb_id} has count {marker_count}")
+                total_counts[marker] = marker_count
+            except KeyError:
+                print(f"Warning: Marker {marker} not found in BBV map")
+                total_counts[marker] = 0
+        return total_counts
+
+    except Exception as e:
+        raise RuntimeError(f"Failed to process markers: {str(e)}")
+
 
 def get_static_info(file_path):
     info = {}
