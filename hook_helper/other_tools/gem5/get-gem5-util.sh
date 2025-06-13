@@ -34,7 +34,7 @@ pushd gem5/util/m5
 # Iterate through array with proper quoting
 for isa in "${ISAS[@]}"; do
     echo "Building for ISA: ${isa}"
-    if ! scons "build/${isa}/out/m5"; then
+    if ! scons "${isa}.CROSS_COMPILE=" "build/${isa}/out/m5"; then
         echo "Failed to build for ${isa}"
         exit 1
     fi
