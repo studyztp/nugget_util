@@ -111,6 +111,34 @@ if ("single-threaded-empty-m5-nugget" IN_LIST ALL_HOOKS)
     )
 endif()
 
+if ("single-threaded-all-empty-m5-nugget" IN_LIST ALL_HOOKS)
+    target_sources(
+        single-threaded-all-empty-m5-nugget
+        PUBLIC
+        single-threaded-all-empty-m5-nugget.c
+    )
+
+    target_include_directories(
+        single-threaded-all-empty-m5-nugget
+        PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+endif()
+
+if ("single-threaded-empty-dynamorio-nugget" IN_LIST ALL_HOOKS)
+    target_sources(
+        single-threaded-empty-dynamorio-nugget
+        PUBLIC
+        single-threaded-empty-dynamorio-nugget.c
+    )
+
+    target_include_directories(
+        single-threaded-empty-dynamorio-nugget
+        PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+endif()
+
 if ("openmp-empty-m5-nugget" IN_LIST ALL_HOOKS)
     target_sources(
         openmp-empty-m5-nugget

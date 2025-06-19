@@ -18,6 +18,8 @@ set(ALL_HOOKS
     single-threaded-sniper-nugget
     empty-hooks-nugget
     single-threaded-empty-m5-nugget
+    single-threaded-all-empty-m5-nugget
+    single-threaded-empty-dynamorio-nugget
     openmp-empty-m5-nugget
 )
 
