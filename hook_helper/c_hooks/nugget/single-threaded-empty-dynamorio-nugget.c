@@ -48,7 +48,6 @@ void warmup_hook() {
             printf("Warm up marker met\n");
             warmup_event();
             counter = 0;
-            if_start_not_met = TRUE;
         }
     }
 }
