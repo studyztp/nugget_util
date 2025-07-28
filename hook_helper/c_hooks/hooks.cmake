@@ -10,6 +10,7 @@ set(ALL_HOOKS
     sniper-naive
     nothing-naive
     papi-naive
+    time-naive
     openmp-m5-nugget
     openmp-time-nugget
     single-threaded-m5-nugget
@@ -20,6 +21,7 @@ set(ALL_HOOKS
     single-threaded-empty-m5-nugget
     single-threaded-all-empty-m5-nugget
     single-threaded-empty-dynamorio-nugget
+    single-threaded-time-nugget
     openmp-empty-m5-nugget
 )
 

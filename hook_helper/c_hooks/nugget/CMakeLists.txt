@@ -152,3 +152,17 @@ if ("openmp-empty-m5-nugget" IN_LIST ALL_HOOKS)
         ${CMAKE_CURRENT_SOURCE_DIR}
     )
 endif()
+
+if ("single-threaded-time-nugget" IN_LIST ALL_HOOKS)
+    target_sources(
+        single-threaded-time-nugget
+        PUBLIC
+        single-threaded-time-nugget.c
+    )
+
+    target_include_directories(
+        single-threaded-time-nugget
+        PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+endif()

@@ -52,3 +52,16 @@ if ("sniper-naive" IN_LIST ALL_HOOKS)
         ${CMAKE_CURRENT_SOURCE_DIR}
     )
 endif()
+
+if ("time-naive" IN_LIST ALL_HOOKS)
+    target_sources(
+        time-naive
+        PUBLIC
+        time-naive.c
+    )
+    target_include_directories(
+        time-naive
+        PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+endif()

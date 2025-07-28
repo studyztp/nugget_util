@@ -2,7 +2,7 @@
 
 # get the papi repository
 
-git clone git@github.com:icl-utk-edu/papi.git
+git clone https://github.com/icl-utk-edu/papi.git
 
 pushd papi/src
 
