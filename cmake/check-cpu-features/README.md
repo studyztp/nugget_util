@@ -6,6 +6,6 @@ For example:
 ```
 
 Be careful when using this with a simulator, as not all modern instructions are supported. 
-For example, many simulators do not support AVX. 
+For example, gem5 does not support AVX. 
 If your simulator falls into this category, make sure to remove the feature here. 
 You can disable a feature using a minus sign, for example: ```-mattr="-avx"```
