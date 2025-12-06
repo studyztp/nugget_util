@@ -21,20 +21,29 @@ fi
 declare -p ISAS
 
 if [ -z "$ISAS" ]; then
-    # Declare array with proper syntax
-    declare -a ISAS=("arm" "arm64" "riscv" "sparc" "thumb" "x86")
-else
-    # Split input string into array
-    IFS=' ' read -ra ISAS <<< "$ISAS"
+    echo "Error: ISAS not set. Export ISAS as a space-separated list (e.g., 'arm arm64 riscv x86')." >&2
+    exit 1
 fi
+
+# Split input string into array
+IFS=' ' read -ra ISAS <<< "$ISAS"
 
 # Build the library and binary
 pushd gem5/util/m5
 
 # Iterate through array with proper quoting
+
 for isa in "${ISAS[@]}"; do
     echo "Building for ISA: ${isa}"
-    if ! scons "${isa}.CROSS_COMPILE=" "build/${isa}/out/m5"; then
+    cross_var="${isa}_CROSS_COMPILE"
+    cross_val=""
+    read -p "Enter CROSS_COMPILE for ${isa} (leave blank for none): " cross_val
+    if [ -n "$cross_val" ]; then
+        scons "${isa}.CROSS_COMPILE=${cross_val}" "build/${isa}/out/m5"
+    else
+        scons "${isa}.CROSS_COMPILE=" "build/${isa}/out/m5"
+    fi
+    if [ $? -ne 0 ]; then
         echo "Failed to build for ${isa}"
         exit 1
     fi
