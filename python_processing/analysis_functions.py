@@ -782,24 +782,25 @@ def k_means_select_regions(
     n_reduce_components: int = 100
 ) -> Dict[str, List[int]]:
     k = num_clusters
-    normalized_data = []
     reversed_bb_id_map = reverse_map(bb_id_map)
 
-    # normalize the bbv data
-    for row in bbv_list:
-        weighted_with_inst = [row[i] * int(static_info[int(reversed_bb_id_map[i])]["basic_block_ir_inst_count"]) for i in range(len(row))]
-        row_sum = sum(weighted_with_inst)
-        if (row_sum == 0):
-            print("Error: Row sum is 0")
-            print(row)
-            print(weighted_with_inst)
-            raise ValueError("Row sum is 0")
-        normalized_row = [val / row_sum for val in weighted_with_inst]
-        normalized_data.append(normalized_row)
-    
-    data = np.array(normalized_data)
+    # Vectorized normalization: weight by static inst counts, divide by row sums.
+    weights = np.array(
+        [int(static_info[int(reversed_bb_id_map[i])]["basic_block_ir_inst_count"]) for i in range(len(reversed_bb_id_map))],
+        dtype=np.float64,
+    )
+    data = np.asarray(bbv_list, dtype=np.float64)
+    data *= weights  # scale each column by inst count
 
-    data = reduce_data_dim_with_pca(data, n_components=n_reduce_components)
+    row_sums = data.sum(axis=1, keepdims=True)
+    if np.any(row_sums == 0):
+        raise ValueError("Row sum is 0 after weighting; check BBV input")
+    data = data / row_sums
+
+    # Dimensionality reduction only when beneficial
+    n_comp = min(n_reduce_components, data.shape[0], data.shape[1])
+    if n_comp and n_comp < data.shape[1]:
+        data = reduce_data_dim_with_pca(data, n_components=n_comp)
 
     k, optimal_kmeans = find_optimal_kmeans_memory_usage_optimized(data, max_k=k)
 
