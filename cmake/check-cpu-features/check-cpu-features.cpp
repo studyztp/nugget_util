@@ -24,7 +24,7 @@ int main() {
             Mattributes.pop_back();
         }
 
-        outfile << "-mcpu=" << CPU << " -mtriple=" << Triple << " -mattr=\"" << Mattributes << "\"" << std::endl;
+        outfile << "-enable-machine-outliner=never " << "-mcpu=" << CPU << " -mtriple=" << Triple << " -mattr=\"" << Mattributes << "\"" << std::endl;
     } else {
         outfile << "Failed to get host CPU features." << std::endl;
     }

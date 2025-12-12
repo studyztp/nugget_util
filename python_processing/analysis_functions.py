@@ -774,12 +774,29 @@ def reduce_data_dim_with_pca(data, n_components):
     pca.fit(data)  # First fit the model
     return pca.transform(data)  # Then transform the data
 
+
+def reduce_data_dim_with_gaussian_random_projection(data, n_components):
+    """Reduce dimensionality of data using Gaussian Random Projection.
+    
+    Args:
+        data: Input data matrix
+        n_components: Number of components to keep
+        
+    Returns:
+        Transformed data with reduced dimensions
+    """
+    from sklearn import random_projection
+    grp = random_projection.GaussianRandomProjection(n_components=n_components, random_state=RANDOM_SEED)
+    grp.fit(data)  # First fit the model
+    return grp.transform(data)  # Then transform the data
+
 def k_means_select_regions(
     num_clusters: int,
     bbv_list: List[List[int]],
     bb_id_map: Dict[str, int],
     static_info: Dict[int, Dict] = None,
-    n_reduce_components: int = 100
+    n_reduce_components: int = 100,
+    if_use_pca: bool = True
 ) -> Dict[str, List[int]]:
     k = num_clusters
     reversed_bb_id_map = reverse_map(bb_id_map)
@@ -800,7 +817,10 @@ def k_means_select_regions(
     # Dimensionality reduction only when beneficial
     n_comp = min(n_reduce_components, data.shape[0], data.shape[1])
     if n_comp and n_comp < data.shape[1]:
-        data = reduce_data_dim_with_pca(data, n_components=n_comp)
+        if if_use_pca:
+            data = reduce_data_dim_with_pca(data, n_components=n_comp)
+        else:
+            data = reduce_data_dim_with_gaussian_random_projection(data, n_components=n_comp)
 
     k, optimal_kmeans = find_optimal_kmeans_memory_usage_optimized(data, max_k=k)
 
