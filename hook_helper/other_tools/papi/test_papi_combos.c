@@ -6,6 +6,8 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <limits.h>
+#include <stdint.h>
+#include <errno.h>
 #include <papi.h>
 
 #define SUPPORTED_INIT_CAP 1024
@@ -21,7 +23,7 @@ static int *event_codes = NULL;
 static int  supported_cap = 0;
 static int  nsupported = 0;
 static int *supported_idxs = NULL;     // flattened [nsupported][combo_size]
-static unsigned int *supported_masks = NULL;
+static uint64_t *supported_masks = NULL;
 
 static long long *values = NULL;
 static long long total_tested = 0, total_supported = 0;
@@ -46,7 +48,7 @@ static bool add_event_name(const char *name) {
 static bool ensure_supported_capacity(void) {
     if (nsupported < supported_cap) return true;
     int new_cap = supported_cap ? supported_cap * 2 : SUPPORTED_INIT_CAP;
-    unsigned int *new_masks = realloc(supported_masks, new_cap * sizeof(*new_masks));
+    uint64_t *new_masks = realloc(supported_masks, new_cap * sizeof(*new_masks));
     int *new_idxs = realloc(supported_idxs, new_cap * combo_size * sizeof(*new_idxs));
     if (!new_masks || !new_idxs) {
         free(new_masks);
@@ -66,6 +68,24 @@ static void print_combo(const int idx[]) {
     }
 }
 
+static void write_cover(const char *path, int cover_sz, const int *cover_order) {
+    if (!path || cover_sz <= 0) return;
+    FILE *f = fopen(path, "w");
+    if (!f) {
+        fprintf(stderr, "Could not open %s for writing: %s\n", path, strerror(errno));
+        return;
+    }
+    for (int i = 0; i < cover_sz; i++) {
+        const int *combo = &supported_idxs[cover_order[i] * combo_size];
+        fputs("[", f);
+        for (int j = 0; j < combo_size; j++) {
+            fprintf(f, "%s%s", event_names[combo[j]], (j + 1 < combo_size ? ", " : ""));
+        }
+        fputs("]\n", f);
+    }
+    fclose(f);
+}
+
 static void test_one(int idx[]) {
     int EventSet = PAPI_NULL;
     total_tested++;
@@ -81,11 +101,11 @@ static void test_one(int idx[]) {
     if (PAPI_stop(EventSet, values) == PAPI_OK) {
         total_supported++;
         if (ensure_supported_capacity()) {
-            unsigned int m = 0;
+            uint64_t m = 0;
             int *dst = &supported_idxs[nsupported * combo_size];
             for (int i = 0; i < combo_size; i++) {
                 dst[i] = idx[i];
-                m |= 1U << idx[i];
+                m |= 1ULL << idx[i];
             }
             supported_masks[nsupported++] = m;
         }
@@ -136,8 +156,8 @@ static bool parse_papi_avail(const char *path) {
     bool ok = true;
     while (ok && getline(&line, &cap, pipe) != -1) {
         if (sscanf(line, "%127s", name) == 1 && strncmp(name, "PAPI_", 5) == 0) {
-            if (nevents >= 32) {
-                fprintf(stderr, "Skipping remaining events after 32 to avoid mask overflow.\n");
+            if (nevents >= 60) {
+                fprintf(stderr, "Skipping remaining events after 60 to avoid mask overflow.\n");
                 continue;
             }
             if (!add_event_name(name)) {
@@ -164,8 +184,9 @@ static void free_events(void) {
 }
 
 int main(int argc, char **argv) {
-    if (argc != 3) {
-        fprintf(stderr, "Usage: %s <combo_size> <path_to_papi_avail>\n", argv[0]);
+    const char *out_path = NULL;
+    if (argc != 3 && argc != 4) {
+        fprintf(stderr, "Usage: %s <combo_size> <path_to_papi_avail> [output_cover.txt]\n", argv[0]);
         return EXIT_FAILURE;
     }
 
@@ -178,6 +199,8 @@ int main(int argc, char **argv) {
     combo_size = (int)parsed;
 
     const char *papi_path = argv[2];
+    if (argc == 4) out_path = argv[3];
+    else out_path = "papi_combo_cover.txt";
     if (!papi_path || *papi_path == '\0') {
         fprintf(stderr, "Invalid path to papi_avail.\n");
         return EXIT_FAILURE;
@@ -235,9 +258,9 @@ int main(int argc, char **argv) {
            total_tested, total_supported,
            total_tested ? 100.0 * total_supported / total_tested : 0.0);
 
-    const unsigned int ALL_MASK = (nevents == 32) ? 0xFFFFFFFFu : ((1U << nevents) - 1U);
+    const uint64_t ALL_MASK = (nevents == 64) ? UINT64_MAX : ((1ULL << nevents) - 1ULL);
 
-    unsigned int covered = 0;
+    uint64_t covered = 0;
     int target = (nevents + combo_size - 1) / combo_size;
     int *cover_order = calloc(nsupported, sizeof(*cover_order));
     if (!cover_order) {
@@ -251,8 +274,8 @@ int main(int argc, char **argv) {
     while (covered != ALL_MASK) {
         int best_i = -1, best_new = 0;
         for (int i = 0; i < nsupported; i++) {
-            unsigned int new_bits = supported_masks[i] & ~covered;
-            int cnt = __builtin_popcount(new_bits);
+            uint64_t new_bits = supported_masks[i] & ~covered;
+            int cnt = __builtin_popcountll(new_bits);
             if (cnt > best_new) {
                 best_new = cnt;
                 best_i = i;
@@ -276,6 +299,7 @@ int main(int argc, char **argv) {
             print_combo(&supported_idxs[cover_order[i] * combo_size]);
         }
         printf("]\n");
+        write_cover(out_path, cover_sz, cover_order);
     }
 
     free(cover_order);
