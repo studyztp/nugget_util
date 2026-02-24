@@ -327,6 +327,8 @@ function(nugget_recursive_create_ir_file TARGET OUT_IR_FILE_LIST OUT_SKIPPED_TAR
     # Skip targets whose source files are not under any NUGGET_PROJECT_SOURCE_DIRS.
     # This catches external libs (lua, mjson, libxc, fmt) that are built within the
     # project tree but aren't part of the actual project source code.
+    # Also exclude files under CMAKE_BINARY_DIR since external libraries are often
+    # copied/fetched there (e.g. libxc, fmt via FetchContent).
     get_target_property(_sources ${TARGET} SOURCES)
     get_target_property(_src_dir ${TARGET} SOURCE_DIR)
     set(_has_project_sources FALSE)
@@ -334,6 +336,10 @@ function(nugget_recursive_create_ir_file TARGET OUT_IR_FILE_LIST OUT_SKIPPED_TAR
         foreach(_s ${_sources})
             if(NOT IS_ABSOLUTE "${_s}")
                 set(_s "${_src_dir}/${_s}")
+            endif()
+            string(FIND "${_s}" "${CMAKE_BINARY_DIR}/" _bin_pos)
+            if(_bin_pos EQUAL 0)
+                continue()
             endif()
             foreach(_proj_dir ${NUGGET_PROJECT_SOURCE_DIRS})
                 string(FIND "${_s}" "${_proj_dir}/" _pos)
