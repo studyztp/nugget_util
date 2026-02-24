@@ -69,6 +69,49 @@ function(nugget_helper_dump_target_properties TARGET)
     message(STATUS "====== End properties for: ${TARGET} ======")
 endfunction(nugget_helper_dump_target_properties)
 
+# Determine whether a target's sources would be compiled to IR by the Nugget
+# pipeline.  Both the IR-creation and link-dependency stages use this so they
+# stay in sync even when they run on different machines.
+function(nugget_is_ir_included_target TARGET RESULT_VAR)
+    get_target_property(_is_imported ${TARGET} IMPORTED)
+    if(_is_imported)
+        set(${RESULT_VAR} FALSE PARENT_SCOPE)
+        return()
+    endif()
+
+    get_target_property(_type ${TARGET} TYPE)
+    if("${_type}" STREQUAL "INTERFACE_LIBRARY")
+        set(${RESULT_VAR} FALSE PARENT_SCOPE)
+        return()
+    endif()
+
+    get_target_property(_sources ${TARGET} SOURCES)
+    get_target_property(_src_dir ${TARGET} SOURCE_DIR)
+    set(_has_project_sources FALSE)
+    if(_sources)
+        foreach(_s ${_sources})
+            if(NOT IS_ABSOLUTE "${_s}")
+                set(_s "${_src_dir}/${_s}")
+            endif()
+            string(FIND "${_s}" "${CMAKE_BINARY_DIR}/" _bin_pos)
+            if(_bin_pos EQUAL 0)
+                continue()
+            endif()
+            foreach(_proj_dir ${NUGGET_PROJECT_SOURCE_DIRS})
+                string(FIND "${_s}" "${_proj_dir}/" _pos)
+                if(_pos EQUAL 0)
+                    set(_has_project_sources TRUE)
+                    break()
+                endif()
+            endforeach()
+            if(_has_project_sources)
+                break()
+            endif()
+        endforeach()
+    endif()
+    set(${RESULT_VAR} ${_has_project_sources} PARENT_SCOPE)
+endfunction(nugget_is_ir_included_target)
+
 function(nugget_find_target_dependencies TARGET RESULT_VAR)
     set(dependent_properties MANUALLY_ADDED_DEPENDENCIES LINK_LIBRARIES INTERFACE_LINK_LIBRARIES)
     foreach(_dep_property ${dependent_properties})
@@ -307,54 +350,9 @@ function(nugget_recursive_create_ir_file TARGET OUT_IR_FILE_LIST OUT_SKIPPED_TAR
         endif()
     endforeach()
 
-    # Skip IMPORTED targets (pre-built external libraries like MPI, HDF5)
-    get_target_property(_is_imported ${TARGET} IMPORTED)
-    if(_is_imported)
-        message(STATUS "Nugget: Skipping imported target: ${TARGET}")
-        list(APPEND ${OUT_SKIPPED_TARGETS} "${TARGET}")
-        set(${OUT_SKIPPED_TARGETS} "${${OUT_SKIPPED_TARGETS}}" PARENT_SCOPE)
-        return()
-    endif()
-
-    # Skip INTERFACE libraries (no source files to compile, but may need linking)
-    get_target_property(LIBRARY_TYPE ${TARGET} TYPE)
-    if("${LIBRARY_TYPE}" STREQUAL "INTERFACE_LIBRARY")
-        list(APPEND ${OUT_SKIPPED_TARGETS} "${TARGET}")
-        set(${OUT_SKIPPED_TARGETS} "${${OUT_SKIPPED_TARGETS}}" PARENT_SCOPE)
-        return()
-    endif()
-
-    # Skip targets whose source files are not under any NUGGET_PROJECT_SOURCE_DIRS.
-    # This catches external libs (lua, mjson, libxc, fmt) that are built within the
-    # project tree but aren't part of the actual project source code.
-    # Also exclude files under CMAKE_BINARY_DIR since external libraries are often
-    # copied/fetched there (e.g. libxc, fmt via FetchContent).
-    get_target_property(_sources ${TARGET} SOURCES)
-    get_target_property(_src_dir ${TARGET} SOURCE_DIR)
-    set(_has_project_sources FALSE)
-    if(_sources)
-        foreach(_s ${_sources})
-            if(NOT IS_ABSOLUTE "${_s}")
-                set(_s "${_src_dir}/${_s}")
-            endif()
-            string(FIND "${_s}" "${CMAKE_BINARY_DIR}/" _bin_pos)
-            if(_bin_pos EQUAL 0)
-                continue()
-            endif()
-            foreach(_proj_dir ${NUGGET_PROJECT_SOURCE_DIRS})
-                string(FIND "${_s}" "${_proj_dir}/" _pos)
-                if(_pos EQUAL 0)
-                    set(_has_project_sources TRUE)
-                    break()
-                endif()
-            endforeach()
-            if(_has_project_sources)
-                break()
-            endif()
-        endforeach()
-    endif()
-    if(NOT _has_project_sources)
-        message(STATUS "Nugget: Skipping non-project target: ${TARGET}")
+    nugget_is_ir_included_target(${TARGET} _is_ir_target)
+    if(NOT _is_ir_target)
+        message(STATUS "Nugget: Skipping target: ${TARGET}")
         list(APPEND ${OUT_SKIPPED_TARGETS} "${TARGET}")
         set(${OUT_SKIPPED_TARGETS} "${${OUT_SKIPPED_TARGETS}}" PARENT_SCOPE)
         return()
@@ -512,13 +510,22 @@ function(nugget_collect_link_deps TARGET OUT_CMD OUT_DEPS VISITED)
                 list(APPEND ${OUT_CMD} "$<TARGET_FILE:${_lib}>")
                 nugget_collect_link_deps(${_lib} ${OUT_CMD} ${OUT_DEPS} ${VISITED})
             else()
-                list(APPEND ${OUT_CMD} "$<TARGET_FILE:${_lib}>")
-                list(APPEND ${OUT_DEPS} "${_lib}")
-                nugget_collect_link_deps(${_lib} ${OUT_CMD} ${OUT_DEPS} ${VISITED})
+                nugget_is_ir_included_target(${_lib} _is_ir)
+                if(_is_ir)
+                    nugget_collect_link_deps(${_lib} ${OUT_CMD} ${OUT_DEPS} ${VISITED})
+                else()
+                    list(APPEND ${OUT_CMD} "$<TARGET_FILE:${_lib}>")
+                    list(APPEND ${OUT_DEPS} "${_lib}")
+                    nugget_collect_link_deps(${_lib} ${OUT_CMD} ${OUT_DEPS} ${VISITED})
+                endif()
             endif()
         else()
-            # Plain string: -lm, -pthread, /path/to/lib.a, etc.
-            list(APPEND ${OUT_CMD} "${_lib}")
+            # Plain string: -lm, -pthread, /path/to/lib.a, or bare name like "dl"
+            if(_lib MATCHES "^[-/]" OR _lib MATCHES "\\.(a|so|dylib|lib)$")
+                list(APPEND ${OUT_CMD} "${_lib}")
+            else()
+                list(APPEND ${OUT_CMD} "-l${_lib}")
+            endif()
         endif()
     endforeach()
 
@@ -610,13 +617,69 @@ function(nugget_create_exe ORIGINAL_TARGET OBJ_TARGET CMD LINK_CMD LINK_DEPS OUT
         message(FATAL_ERROR "Nugget: Target '${OBJ_TARGET}' has no NUGGET_OBJ_FILE property")
     endif()
 
+    # LINKER_LANGUAGE may not be computed at configure time.  Fall back to
+    # enabled languages.  For mixed CXX+Fortran projects, prefer CXX to avoid
+    # flang-new linking libFortran_main (which defines its own main()).
     get_target_property(_lang ${ORIGINAL_TARGET} LINKER_LANGUAGE)
+    get_property(_enabled_langs GLOBAL PROPERTY ENABLED_LANGUAGES)
+
+    if(NOT _lang OR "${_lang}" STREQUAL "_lang-NOTFOUND" OR "${_lang}" STREQUAL "NOTFOUND")
+        if("CXX" IN_LIST _enabled_langs)
+            set(_lang "CXX")
+        elseif("Fortran" IN_LIST _enabled_langs)
+            set(_lang "Fortran")
+        else()
+            set(_lang "C")
+        endif()
+    elseif(_lang STREQUAL "Fortran" AND "CXX" IN_LIST _enabled_langs)
+        set(_lang "CXX")
+    endif()
+
     if(_lang STREQUAL "CXX")
         set(_linker "${NUGGET_CXX_COMPILER}")
     elseif(_lang STREQUAL "Fortran")
         set(_linker "${NUGGET_Fortran_COMPILER}")
     else()
         set(_linker "${NUGGET_C_COMPILER}")
+    endif()
+
+    # When the linker is not flang-new, add the Fortran runtime explicitly
+    # (FortranRuntime + FortranDecimal, but NOT Fortran_main).
+    if("Fortran" IN_LIST _enabled_langs AND NOT _lang STREQUAL "Fortran")
+        set(_fortran_lib_dir "")
+
+        # Strategy 1: ask the compiler directly
+        execute_process(
+            COMMAND ${NUGGET_Fortran_COMPILER} --print-file-name=libFortranRuntime.a
+            OUTPUT_VARIABLE _frt_path
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET
+        )
+        if(_frt_path AND NOT "${_frt_path}" STREQUAL "libFortranRuntime.a"
+                AND EXISTS "${_frt_path}")
+            get_filename_component(_fortran_lib_dir "${_frt_path}" DIRECTORY)
+        endif()
+
+        # Strategy 2: resolve the compiler symlink and look in ../lib
+        if(NOT _fortran_lib_dir)
+            find_program(_flang_real NAMES ${NUGGET_Fortran_COMPILER})
+            if(_flang_real)
+                get_filename_component(_flang_real "${_flang_real}" REALPATH)
+                get_filename_component(_flang_bin "${_flang_real}" DIRECTORY)
+                get_filename_component(_flang_prefix "${_flang_bin}" DIRECTORY)
+                if(EXISTS "${_flang_prefix}/lib/libFortranRuntime.a")
+                    set(_fortran_lib_dir "${_flang_prefix}/lib")
+                endif()
+            endif()
+        endif()
+
+        message(STATUS "Nugget: Fortran runtime lib dir = ${_fortran_lib_dir}")
+        if(_fortran_lib_dir)
+            list(APPEND LINK_CMD "-L${_fortran_lib_dir}")
+        else()
+            message(WARNING "Nugget: Could not locate Fortran runtime libraries; link may fail.")
+        endif()
+        list(APPEND LINK_CMD "-lFortranRuntime" "-lFortranDecimal")
     endif()
 
     # Separate file dependencies from linker flags — DEPENDS only accepts
@@ -629,6 +692,15 @@ function(nugget_create_exe ORIGINAL_TARGET OBJ_TARGET CMD LINK_CMD LINK_DEPS OUT
     endforeach()
 
     set(_exe_out "${LLVM_EXE_OUTPUT_DIR}/${OUTPUT_TARGET}")
+
+    message(STATUS "Nugget link: linker      = ${_linker}")
+    message(STATUS "Nugget link: lang        = ${_lang}")
+    message(STATUS "Nugget link: obj         = ${_obj_file}")
+    message(STATUS "Nugget link: flags       = ${CMD}")
+    message(STATUS "Nugget link: link_cmd    = ${LINK_CMD}")
+    message(STATUS "Nugget link: link_deps   = ${LINK_DEPS}")
+    message(STATUS "Nugget link: output      = ${_exe_out}")
+
     add_custom_command(
         OUTPUT "${_exe_out}"
         COMMAND ${CMAKE_COMMAND} -E make_directory "${LLVM_EXE_OUTPUT_DIR}"
